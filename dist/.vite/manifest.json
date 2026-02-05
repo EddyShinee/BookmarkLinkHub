@@ -1,0 +1,58 @@
+{
+  "../../../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-DmaQVH6m.js",
+    "name": "crx-manifest.js",
+    "src": "../../../../@crx/manifest",
+    "isEntry": true
+  },
+  "_client-D-UsaJzS.js": {
+    "file": "assets/client-D-UsaJzS.js",
+    "name": "client"
+  },
+  "_globals-!~{006}~.js": {
+    "file": "assets/globals-Duv3Nz6K.css",
+    "src": "_globals-!~{006}~.js"
+  },
+  "src/background/index.ts": {
+    "file": "assets/index.ts-gZCjj8re.js",
+    "name": "index.ts",
+    "src": "src/background/index.ts",
+    "isEntry": true
+  },
+  "src/newtab/index.html": {
+    "file": "assets/index.html-V7eCX5YK.js",
+    "name": "index.html",
+    "src": "src/newtab/index.html",
+    "isEntry": true,
+    "imports": [
+      "_client-D-UsaJzS.js"
+    ],
+    "css": [
+      "assets/globals-Duv3Nz6K.css"
+    ]
+  },
+  "src/options/index.html": {
+    "file": "assets/index.html-Cv1iNY1H.js",
+    "name": "index.html",
+    "src": "src/options/index.html",
+    "isEntry": true,
+    "imports": [
+      "_client-D-UsaJzS.js"
+    ],
+    "css": [
+      "assets/globals-Duv3Nz6K.css"
+    ]
+  },
+  "src/popup/index.html": {
+    "file": "assets/index.html-B0O6qF0G.js",
+    "name": "index.html",
+    "src": "src/popup/index.html",
+    "isEntry": true,
+    "imports": [
+      "_client-D-UsaJzS.js"
+    ],
+    "css": [
+      "assets/index-C_8DP7CI.css"
+    ]
+  }
+}
