@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Add Authenticator Modal</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#256af4",
+                        "background-light": "#f5f6f8",
+                        "background-dark": "#101622",
+                        "surface-dark": "#182234",
+                        "border-dark": "#314368",
+                        "text-secondary": "#90a4cb",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%': { top: '5%', opacity: '0' },
+                            '10%': { opacity: '1' },
+                            '90%': { opacity: '1' },
+                            '100%': { top: '95%', opacity: '0' },
+                        }
+                    },
+                    animation: {
+                        scan: 'scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for clean look if needed */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #101622;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #314368;
+            border-radius: 4px;
+        }
+        
+        .glass-panel {
+            background: rgba(24, 34, 52, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .scan-gradient {
+            background: linear-gradient(to bottom, transparent, rgba(37, 106, 244, 0.5), transparent);
+        }
+        
+        .scan-line {
+            box-shadow: 0 0 15px rgba(37, 106, 244, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-background-dark font-display text-white overflow-hidden min-h-screen flex items-center justify-center p-4">
+<!-- Background Decoration -->
+<div class="fixed inset-0 z-0 pointer-events-none">
+<div class="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px]"></div>
+<div class="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px]"></div>
+</div>
+<!-- Modal Overlay -->
+<div class="relative z-10 w-full max-w-[960px] glass-panel border border-border-dark rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+<!-- Modal Header -->
+<div class="flex items-center justify-between p-6 border-b border-border-dark shrink-0">
+<div class="flex flex-col gap-1">
+<h1 class="text-xl font-bold tracking-tight text-white">Add New Authenticator</h1>
+<p class="text-sm text-text-secondary">Choose how you want to add the account.</p>
+</div>
+<button class="group p-2 rounded-lg hover:bg-white/5 transition-colors text-text-secondary hover:text-white">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Modal Body (Scrollable) -->
+<div class="overflow-y-auto p-6 md:p-8">
+<div class="flex flex-col md:flex-row gap-8 items-stretch h-full">
+<!-- Option 1: Scan QR -->
+<div class="flex-1 flex flex-col gap-4">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary">qr_code_scanner</span>
+<h2 class="text-base font-semibold text-white">Scan QR Code</h2>
+</div>
+<div class="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-border-dark group cursor-pointer ring-offset-2 ring-offset-surface-dark focus-within:ring-2 focus-within:ring-primary">
+<!-- Camera Feed Placeholder -->
+<div class="absolute inset-0 bg-cover bg-center opacity-60" data-alt="Abstract dark cyber security background pattern representing camera feed" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBJMQJ7uzLrLaJAFRAUS3T_IGk9Ux9zCQ_0Zz4F1S0RoGi1VAnboPthRYQ_rZndSNH8KbOtLrRymRBDLqDUCr6LCPyJ332Ifz_uOo2F6O7sCC6giAlWaULMYhVp_3yN7XFk8NPZS-xmDJDBz2rRIm-8PiyQ_e-QTIBuvXY2IRTQEI_EyXg0Z2DVvnaGknlyhS8Dy5XkxCw3V0gVbT1UCTDMhXnWjRA7BXnGLS-UbM5GnuAPnzflYixgUiC3W-2Pt-ktXGejUNnOgmik');"></div>
+<!-- Camera Viewfinder UI -->
+<div class="absolute inset-0 flex items-center justify-center p-8 md:p-12">
+<div class="relative w-full h-full max-w-[280px] max-h-[280px]">
+<!-- Corners -->
+<div class="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white/80 rounded-tl-lg"></div>
+<div class="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white/80 rounded-tr-lg"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white/80 rounded-bl-lg"></div>
+<div class="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white/80 rounded-br-lg"></div>
+<!-- Scan Line Animation -->
+<div class="absolute left-0 right-0 h-0.5 bg-primary scan-line animate-scan shadow-[0_0_20px_rgba(37,106,244,1)]"></div>
+</div>
+</div>
+<!-- Status Badge -->
+<div class="absolute bottom-4 left-0 right-0 flex justify-center">
+<div class="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 flex items-center gap-2">
+<div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+<span class="text-xs font-medium text-white/90">Camera Active</span>
+</div>
+</div>
+</div>
+<p class="text-sm text-text-secondary text-center">
+                        Point your camera at the QR code on your screen or printed paper.
+                    </p>
+</div>
+<!-- Divider (Responsive) -->
+<div class="flex md:flex-col items-center justify-center gap-4 text-text-secondary">
+<div class="h-px w-full md:w-px md:h-full bg-border-dark"></div>
+<span class="text-xs font-bold uppercase tracking-wider px-2">OR</span>
+<div class="h-px w-full md:w-px md:h-full bg-border-dark"></div>
+</div>
+<!-- Option 2: Upload File -->
+<div class="flex-1 flex flex-col gap-4">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary">upload_file</span>
+<h2 class="text-base font-semibold text-white">Upload QR Image</h2>
+</div>
+<div class="flex-1 min-h-[240px] flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border-dark bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all cursor-pointer p-6 text-center group">
+<div class="w-16 h-16 rounded-full bg-surface-dark flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-3xl text-primary">cloud_upload</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-lg font-bold text-white">Click or drag file</p>
+<p class="text-sm text-text-secondary max-w-[200px]">
+                                Supports PNG, JPG or BMP containing a clear QR code
+                            </p>
+</div>
+<button class="mt-2 px-4 py-2 bg-surface-dark border border-border-dark rounded-lg text-sm font-medium text-white shadow-sm hover:bg-[#222f49] transition-colors">
+                            Select File
+                        </button>
+</div>
+<p class="text-sm text-text-secondary text-center">
+                        Upload a screenshot or saved image of the QR code.
+                    </p>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="bg-surface-dark border-t border-border-dark p-6 rounded-b-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+<!-- Manual Entry Option -->
+<button class="flex items-center gap-2 text-sm text-text-secondary hover:text-white transition-colors group">
+<span class="material-symbols-outlined text-[18px] group-hover:text-primary transition-colors">keyboard</span>
+<span>Can't scan? <span class="underline decoration-text-secondary/50 underline-offset-4 group-hover:decoration-primary">Enter Secret Key manually</span></span>
+</button>
+<!-- Actions -->
+<div class="flex items-center gap-3 w-full sm:w-auto">
+<button class="flex-1 sm:flex-none px-6 py-2.5 rounded-lg border border-border-dark text-sm font-medium text-white hover:bg-white/5 transition-colors">
+                    Cancel
+                </button>
+<button class="flex-1 sm:flex-none px-6 py-2.5 rounded-lg bg-primary/20 text-primary border border-primary/20 text-sm font-semibold opacity-50 cursor-not-allowed hover:bg-primary/30 transition-colors" disabled="">
+                    Next
+                </button>
+</div>
+</div>
+</div>
+</body></html>

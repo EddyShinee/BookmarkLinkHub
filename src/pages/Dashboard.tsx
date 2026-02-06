@@ -170,6 +170,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     open: boolean;
     title: string;
     message: string;
+    confirmLabel?: string;
+    danger?: boolean;
     onConfirm: () => void;
   }>({ open: false, title: '', message: '', onConfirm: () => {} });
 
@@ -268,8 +270,40 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   }, [userMenuOpen]);
 
   useEffect(() => {
-    if (initialAddBookmark) setAddModalOpen(true);
-  }, [initialAddBookmark]);
+    if (!initialAddBookmark) return;
+    const t = getT(settings.locale);
+    if (boards.length === 0) {
+      setConfirmDialog({
+        open: true,
+        title: t.addBookmark,
+        message: t.addBookmarkNeedBoard,
+        confirmLabel: t.createBoard,
+        danger: false,
+        onConfirm: () => {
+          setConfirmDialog((d) => ({ ...d, open: false }));
+          setBoardModalOpen(true);
+        },
+      });
+      setAddModalOpen(false);
+      return;
+    }
+    if (categories.length === 0) {
+      setConfirmDialog({
+        open: true,
+        title: t.addBookmark,
+        message: t.addBookmarkNeedCategory,
+        confirmLabel: t.createCategory,
+        danger: false,
+        onConfirm: () => {
+          setConfirmDialog((d) => ({ ...d, open: false }));
+          setCategoryModalOpen(true);
+        },
+      });
+      setAddModalOpen(false);
+      return;
+    }
+    setAddModalOpen(true);
+  }, [initialAddBookmark, boards.length, categories.length, settings.locale]);
 
   useEffect(() => {
     if (initialOpenAuthenticator) setAuthenticatorModalOpen(true);
@@ -648,6 +682,35 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   };
 
   const openAddBookmark = (defaultCategoryId?: string) => {
+    const t = getT(settings.locale);
+    if (boards.length === 0) {
+      setConfirmDialog({
+        open: true,
+        title: t.addBookmark,
+        message: t.addBookmarkNeedBoard,
+        confirmLabel: t.createBoard,
+        danger: false,
+        onConfirm: () => {
+          setConfirmDialog((d) => ({ ...d, open: false }));
+          setBoardModalOpen(true);
+        },
+      });
+      return;
+    }
+    if (categories.length === 0) {
+      setConfirmDialog({
+        open: true,
+        title: t.addBookmark,
+        message: t.addBookmarkNeedCategory,
+        confirmLabel: t.createCategory,
+        danger: false,
+        onConfirm: () => {
+          setConfirmDialog((d) => ({ ...d, open: false }));
+          setCategoryModalOpen(true);
+        },
+      });
+      return;
+    }
     setBookmarkEditing(null);
     setAddBookmarkCategoryId(defaultCategoryId ?? null);
     setBookmarkModalOpen(true);
@@ -1309,6 +1372,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
         open={confirmDialog.open}
         title={confirmDialog.title}
         message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        danger={confirmDialog.danger}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((d) => ({ ...d, open: false }))}
       />

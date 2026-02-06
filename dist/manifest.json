@@ -7,10 +7,13 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "activeTab"
+    "activeTab",
+    "tabs",
+    "windows"
   ],
   "host_permissions": [
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "<all_urls>"
   ],
   "chrome_url_overrides": {
     "newtab": "src/newtab/index.html"

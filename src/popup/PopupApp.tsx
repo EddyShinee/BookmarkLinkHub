@@ -11,7 +11,7 @@ import type { Bookmark } from '../hooks/useBookmarks';
 const NEWTAB_PATH = 'src/newtab/index.html';
 const TOTP_STEP = 30;
 
-type TabId = 'bookmarks' | 'it-tools' | 'authenticator';
+type TabId = 'authenticator' | 'bookmarks' | 'it-tools';
 
 export default function PopupApp() {
   const { session, loading: authLoading } = useAuth();
