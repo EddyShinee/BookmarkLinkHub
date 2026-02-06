@@ -18,6 +18,7 @@ import type { Bookmark, Category, Board } from '../hooks/useBookmarks';
 import { useSettings } from '../contexts/SettingsContext';
 import SettingsModal from '../components/SettingsModal';
 import BoardModal from '../components/BoardModal';
+import ITToolboxModal from '../components/ITToolboxModal';
 import CategoryModal from '../components/CategoryModal';
 import BookmarkModal from '../components/BookmarkModal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -148,6 +149,7 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const [boardModalOpen, setBoardModalOpen] = useState(false);
+  const [itToolboxModalOpen, setItToolboxModalOpen] = useState(false);
   const [boardEditing, setBoardEditing] = useState<Board | null>(null);
   const [boardMenuId, setBoardMenuId] = useState<string | null>(null);
 
@@ -805,6 +807,16 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
             <span className="font-semibold text-sm tracking-tight text-white">LinkHub</span>
           </div>
         </div>
+        <div className="px-3 pt-2 pb-1">
+          <button
+            type="button"
+            onClick={() => setItToolboxModalOpen(true)}
+            className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary hover:bg-white/5 hover:text-white border border-transparent transition"
+          >
+            <span className="material-symbols-outlined text-[18px] text-accent">build</span>
+            <span>IT Tool box</span>
+          </button>
+        </div>
         <div className="px-3 pt-3 pb-1.5 flex items-center justify-between">
           <span className="text-[12px] font-semibold uppercase text-text-muted tracking-wider">Boards</span>
           <button
@@ -980,7 +992,8 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
             <button
               type="button"
               onClick={() => { setCategoryEditing(null); setCategoryModalOpen(true); }}
-              disabled={!selectedBoardId}
+              disabled={!selectedBoardId || boards.length === 0}
+              title={boards.length === 0 ? getT(settings.locale).createBoardFirst : undefined}
               className="glass-panel text-white hover:bg-accent hover:border-accent text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
@@ -1225,6 +1238,8 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
         onExportHtml={handleExportHtml}
         onImportFile={handleImportFile}
       />
+
+      <ITToolboxModal open={itToolboxModalOpen} onClose={() => setItToolboxModalOpen(false)} />
 
       <BoardModal
         open={boardModalOpen}

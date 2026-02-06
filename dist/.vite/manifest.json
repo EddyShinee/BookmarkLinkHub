@@ -10,7 +10,7 @@
     "name": "client"
   },
   "_globals-!~{006}~.js": {
-    "file": "assets/globals-Duv3Nz6K.css",
+    "file": "assets/globals-zgHdrHbq.css",
     "src": "_globals-!~{006}~.js"
   },
   "src/background/index.ts": {
@@ -20,7 +20,7 @@
     "isEntry": true
   },
   "src/newtab/index.html": {
-    "file": "assets/index.html-V7eCX5YK.js",
+    "file": "assets/index.html-DqU_sNhB.js",
     "name": "index.html",
     "src": "src/newtab/index.html",
     "isEntry": true,
@@ -28,11 +28,11 @@
       "_client-D-UsaJzS.js"
     ],
     "css": [
-      "assets/globals-Duv3Nz6K.css"
+      "assets/globals-zgHdrHbq.css"
     ]
   },
   "src/options/index.html": {
-    "file": "assets/index.html-Cv1iNY1H.js",
+    "file": "assets/index.html-DXmYUe_5.js",
     "name": "index.html",
     "src": "src/options/index.html",
     "isEntry": true,
@@ -40,11 +40,11 @@
       "_client-D-UsaJzS.js"
     ],
     "css": [
-      "assets/globals-Duv3Nz6K.css"
+      "assets/globals-zgHdrHbq.css"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-B0O6qF0G.js",
+    "file": "assets/index.html-OGYObCiC.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
@@ -52,7 +52,7 @@
       "_client-D-UsaJzS.js"
     ],
     "css": [
-      "assets/index-C_8DP7CI.css"
+      "assets/index-ByEtvI7y.css"
     ]
   }
 }
