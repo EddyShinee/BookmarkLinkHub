@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useSettings } from '../../contexts/SettingsContext';
 import { getT } from '../../lib/i18n';
 import { BACKGROUND_COLORS } from '../../lib/settings';
+import { supabaseUrlDisplay } from '../../lib/supabaseClient';
 
 interface SettingsModalProps {
   open: boolean;
@@ -114,6 +115,14 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                     {t.light}
                   </button>
                 </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>Supabase</SettingLabel>
+                <p className="text-[11px] text-text-muted break-all" title={supabaseUrlDisplay}>
+                  {supabaseUrlDisplay}
+                </p>
+                <p className="text-[10px] text-text-muted mt-1">{t.supabaseUrlHint}</p>
               </SettingCard>
             </div>
 

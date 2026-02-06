@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Authenticator List View</title>
+<!-- Tailwind Configuration -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#256af4",
+              "background-light": "#f5f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"],
+              "mono": ["Roboto Mono", "monospace"],
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+            boxShadow: {
+                "glow": "0 0 20px -5px rgba(37, 106, 244, 0.5)"
+            }
+          },
+        },
+      }
+    </script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Roboto+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d3748;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a5568;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen flex items-center justify-center p-4">
+<!-- Modal/Card Container -->
+<div class="relative w-full max-w-[420px] bg-[#151b28] dark:bg-[#151b28] rounded-2xl shadow-2xl border border-white/5 overflow-hidden flex flex-col max-h-[800px] h-[75vh]">
+<!-- Header Section -->
+<div class="flex flex-col gap-5 p-6 pb-2 z-10 bg-[#151b28]/95 backdrop-blur-sm sticky top-0">
+<div class="flex items-center justify-between">
+<h1 class="text-white text-2xl font-bold tracking-tight">Authenticator</h1>
+<button class="flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:text-white hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+<!-- Search Bar -->
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500 group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="block w-full pl-11 pr-4 py-3 rounded-xl bg-[#1e2532] border-none text-white placeholder-gray-500 focus:ring-1 focus:ring-primary focus:bg-[#232b3a] transition-all text-sm font-medium" placeholder="Search accounts..." type="text"/>
+</div>
+</div>
+<!-- Scrollable Account List -->
+<div class="flex-1 overflow-y-auto px-4 py-2 space-y-1 pb-24">
+<!-- Item 1: GitHub -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-sm">
+<img alt="GitHub Logo" class="w-7 h-7 object-contain" data-alt="Black github octocat silhouette logo on white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2MNzJ81773bkSxT5EvIq4-YKppwydXMNSqKEVx9hxtlIAUC9zxgUlq7QV963fGb3USfe9DJFn_EhIBAfXtAmyIlk_muVHwPgz0aECy9fuIG60-hyq-IzWdsqMLsRkdquzeTjNDDWThQq_hFv14Pf5QC54BpVRBPnNNuo8i8in0eWgmbgJ6XWmsj8IgXPZxnU_SIpfXD6GCmRktvrlkUQnclOhnhPiKnF8SPdp2MenRgHtPeTeGR6iE7oTGZmmZLao1pRCk5VGhx1g"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">GitHub</span>
+<span class="text-[#90a4cb] text-xs truncate">git.hub@dev.co</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<div class="flex flex-col items-end">
+<span class="text-white font-mono font-medium text-lg tracking-wider group-hover:text-primary transition-colors">593 291</span>
+</div>
+<!-- Timer Ring (75%) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="22s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-primary transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="15.7" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+<!-- Hover Copy Feedback (Visual Only) -->
+<div class="absolute inset-0 flex items-center justify-center bg-[#1e2532]/90 opacity-0 group-active:opacity-100 transition-opacity rounded-xl pointer-events-none">
+<span class="text-primary font-medium text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">content_copy</span> Copied
+                    </span>
+</div>
+</div>
+<!-- Item 2: AWS (Warning State) -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-sm">
+<img alt="AWS Logo" class="w-7 h-7 object-contain px-1" data-alt="Amazon Web Services smile logo in black" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8hpkS3p-x8QTjCXGB2z6_f22gtkbX4YQPYiZ-EUv1ivU8kKXT3QN0tMgVksptgo9cVTc1xw0xtyzmPxc6Rpo670IShn0Eg7dj6EQabTsqLzNjq0avUb8vX5f69a4GjemVYNjbVDCcNcVE__mHnhGwCrWktJ9xshh5d5y9jKtYg0BdjmTOQ9R9uPjA206Ev0wnL_aDnLBtCRJ-oKTSjkNwYCQXz2GyZWxhnhk0W34W_-NO8pEN7Wfd-WN29LNJ9BmjOWL-Qqg5Xcjl"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">AWS Root</span>
+<span class="text-[#90a4cb] text-xs truncate">admin@aws.com</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<span class="text-red-400 font-mono font-medium text-lg tracking-wider animate-pulse">102 449</span>
+<!-- Timer Ring (15% - Red Warning) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="5s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-red-500 transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="53" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+<!-- Item 3: Google -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-sm">
+<img alt="Google Logo" class="w-7 h-7 object-contain" data-alt="Google G multicolored logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3t1mWPJ-5KP9ArIhhH5ACx55JBt1kf-p3xzct-uAru_wp4-YaLVvKbzdcJsArb5PFXmjD-mj2Mfghl72XA_8W9ukzklJk2SOLlPccE3VEE0ss0tQ4LjlxgnFiyCEJSE7wQ86_gGi88m1H-SMa9pmbkg_3mQLAVmTjCY0lIm8oLc4DqiCXkCnhkVRnwAXuLur_HjKa9VVnoVCP3zti6oY684DMpPxaMK-khAgSEbgv8d59TRIJ8BysXnyWHyt5SBabhcJaeXOCXk2i"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">Google Workspace</span>
+<span class="text-[#90a4cb] text-xs truncate">me@company.com</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<span class="text-white font-mono font-medium text-lg tracking-wider group-hover:text-primary transition-colors">882 119</span>
+<!-- Timer Ring (50%) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="15s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-primary transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="31.4" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+<!-- Item 4: Stripe -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-[#635BFF] flex items-center justify-center overflow-hidden shadow-sm">
+<span class="text-white font-bold text-lg">S</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">Stripe</span>
+<span class="text-[#90a4cb] text-xs truncate">billing@dev.co</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<span class="text-white font-mono font-medium text-lg tracking-wider group-hover:text-primary transition-colors">334 501</span>
+<!-- Timer Ring (90%) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="27s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-primary transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="6.28" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+<!-- Item 5: Slack -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-sm">
+<img alt="Slack Logo" class="w-7 h-7 object-contain" data-alt="Slack hash logo colorful" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYqmQielGKCVCLrqEELKuwG6WeI4qAMqXBg5-A9k1_dfnBWaszzX-RW9Cs0yc57D9OGxMhI6xXElaC8AL7MK5BRbn9yOuzMhD2hM0dumYim_K1Mx2xOqKnFo3M3C0j_Fijm_u4Qb-uHc-4Q0pwDAyaQXvZGv2N0ctChrESlAbCWTMYptO2m3pr4MqzmhTaJVpKy98dBiyongsqnqfhiwqnz9QnnjmHTZehVXLTnQxjyrgzW0TqTFEy2-c8fIWN1Hkf4dE4gQ2k2psD"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">Slack</span>
+<span class="text-[#90a4cb] text-xs truncate">workspace@slack.com</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<span class="text-white font-mono font-medium text-lg tracking-wider group-hover:text-primary transition-colors">192 843</span>
+<!-- Timer Ring (30%) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="10s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-primary transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="44" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+<!-- Item 6: Figma -->
+<div class="group relative flex items-center justify-between p-3.5 rounded-xl hover:bg-[#1e2532] transition-colors cursor-pointer border border-transparent hover:border-white/5">
+<div class="flex items-center gap-4 min-w-0">
+<div class="relative shrink-0 w-11 h-11 rounded-xl bg-[#1e1e1e] border border-white/10 flex items-center justify-center overflow-hidden shadow-sm">
+<img alt="Figma Logo" class="w-6 h-6 object-contain" data-alt="Figma colorful F logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-7ulJh8GOQ59gKmQ4DbROrtn5_8sXjOncFbDGcI6KDKgcKP7e_l-ORwsnvzMqsVLWfi28uamidjPCtzMI4_gHby9HOoXLXtbBjht1Mhpp5qo1MuqhVpHyurO5aNa5wJd-BG-lHuXHTzkeQ8quvg4mvLbuyQ2oEvA0Psehqp0E4OoJdKV4fYl5wKs3xRQQkRz5qWiJNyPlurMcJhl6n3GLxyi1Qo760-Gpsh-itk61Vr3iAkSTqrtysTQKlPYMEWzP4K-tSpDAcMFq"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-white font-semibold text-[15px] truncate">Figma</span>
+<span class="text-[#90a4cb] text-xs truncate">design@dev.co</span>
+</div>
+</div>
+<div class="flex items-center gap-4 shrink-0">
+<span class="text-white font-mono font-medium text-lg tracking-wider group-hover:text-primary transition-colors">402 911</span>
+<!-- Timer Ring (60%) -->
+<div class="relative w-[26px] h-[26px] flex items-center justify-center" title="18s remaining">
+<svg class="transform -rotate-90 w-full h-full">
+<circle cx="13" cy="13" fill="transparent" r="10" stroke="#2d3748" stroke-width="2.5"></circle>
+<circle class="text-primary transition-all duration-1000" cx="13" cy="13" fill="transparent" r="10" stroke="currentColor" stroke-dasharray="62.8" stroke-dashoffset="25" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Button -->
+<div class="absolute bottom-6 right-6 z-20">
+<button class="w-14 h-14 bg-primary rounded-full shadow-glow flex items-center justify-center text-white hover:bg-blue-600 active:scale-95 transition-all group">
+<span class="material-symbols-outlined text-[28px] group-hover:rotate-90 transition-transform duration-300">add</span>
+</button>
+</div>
+<!-- Gradient Fade at bottom of list -->
+<div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#151b28] to-transparent pointer-events-none z-10"></div>
+</div>
+</body></html>

@@ -1,22 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 html, body {
   width: 360px;
   min-width: 360px;
-  min-height: 200px;
+  height: 500px;
+  min-height: 500px;
+  max-height: 500px;
   margin: 0;
   padding: 0;
-  font-family: system-ui, sans-serif;
-  font-size: 13px;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
   z-index: 1;
 }
 
 #root {
+  height: 100%;
   min-height: 100%;
   position: relative;
   z-index: 1;
+  overflow: hidden;
 }

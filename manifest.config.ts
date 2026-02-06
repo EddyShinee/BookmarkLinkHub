@@ -9,8 +9,8 @@ const manifest = {
   description: 'Trang quản lý bookmark khi mở tab mới — đồng bộ đám mây',
   version: `${major}.${minor}.${patch}`,
   version_name: version,
-  permissions: ['storage', 'contextMenus', 'activeTab'],
-  host_permissions: ['https://*.supabase.co/*'],
+  permissions: ['storage', 'contextMenus', 'activeTab', 'tabs', 'windows'],
+  host_permissions: ['https://*.supabase.co/*', '<all_urls>'],
   // Khi mở tab mới → hiển thị trang quản lý bookmark (không phải popup)
   chrome_url_overrides: {
     newtab: 'src/newtab/index.html',

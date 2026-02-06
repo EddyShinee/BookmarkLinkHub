@@ -16,3 +16,9 @@ export const supabase = createClient(url ?? '', key ?? '', {
     detectSessionInUrl: true,
   },
 });
+
+/** URL Supabase extension đang dùng (để so sánh với Dashboard → Settings → API → Project URL) */
+export const supabaseUrlDisplay =
+  url && url.length > 0
+    ? url.replace(/\/$/, '')
+    : '(chưa cấu hình .env)';

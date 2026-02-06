@@ -9,6 +9,8 @@ import Register from '../pages/Register';
 export default function NewTabApp() {
   const { session, loading } = useAuth();
   const [addParams, setAddParams] = useState<{ url: string; title: string } | null>(null);
+  const [openAuthenticator, setOpenAuthenticator] = useState(false);
+  const [openItTools, setOpenItTools] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -18,6 +20,8 @@ export default function NewTabApp() {
         title: params.get('title') ?? '',
       });
     }
+    if (params.get('open') === 'authenticator') setOpenAuthenticator(true);
+    if (params.get('open') === 'it-tools') setOpenItTools(true);
   }, []);
 
   if (loading) {
@@ -37,7 +41,11 @@ export default function NewTabApp() {
           path="/"
           element={
             session ? (
-              <Dashboard initialAddBookmark={addParams ?? undefined} />
+              <Dashboard
+                initialAddBookmark={addParams ?? undefined}
+                initialOpenAuthenticator={openAuthenticator}
+                initialOpenItTools={openItTools}
+              />
             ) : (
               <Navigate to="/login" replace />
             )

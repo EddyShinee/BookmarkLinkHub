@@ -19,6 +19,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import SettingsModal from '../components/SettingsModal';
 import BoardModal from '../components/BoardModal';
 import ITToolboxModal from '../components/ITToolboxModal';
+import AuthenticatorModal from '../components/AuthenticatorModal';
 import CategoryModal from '../components/CategoryModal';
 import BookmarkModal from '../components/BookmarkModal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -129,9 +130,11 @@ function SortableCategoryCard({
 
 interface DashboardProps {
   initialAddBookmark?: { url: string; title: string };
+  initialOpenAuthenticator?: boolean;
+  initialOpenItTools?: boolean;
 }
 
-export default function Dashboard({ initialAddBookmark }: DashboardProps) {
+export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator, initialOpenItTools }: DashboardProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { boards, setBoards, loading: boardsLoading, error: boardsError, refetch: refetchBoards } = useBookmarks(user?.id);
@@ -149,7 +152,8 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const [boardModalOpen, setBoardModalOpen] = useState(false);
-  const [itToolboxModalOpen, setItToolboxModalOpen] = useState(false);
+  const [authenticatorModalOpen, setAuthenticatorModalOpen] = useState(!!initialOpenAuthenticator);
+  const [itToolboxModalOpen, setItToolboxModalOpen] = useState(!!initialOpenItTools);
   const [boardEditing, setBoardEditing] = useState<Board | null>(null);
   const [boardMenuId, setBoardMenuId] = useState<string | null>(null);
 
@@ -266,6 +270,10 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
   useEffect(() => {
     if (initialAddBookmark) setAddModalOpen(true);
   }, [initialAddBookmark]);
+
+  useEffect(() => {
+    if (initialOpenAuthenticator) setAuthenticatorModalOpen(true);
+  }, [initialOpenAuthenticator]);
 
   useEffect(() => {
     // Restore last UI state from localStorage (works in dev) and chrome.storage.local (in extension)
@@ -807,7 +815,15 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
             <span className="font-semibold text-sm tracking-tight text-white">LinkHub</span>
           </div>
         </div>
-        <div className="px-3 pt-2 pb-1">
+        <div className="px-3 pt-2 pb-1 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => setAuthenticatorModalOpen(true)}
+            className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary hover:bg-white/5 hover:text-white border border-transparent transition"
+          >
+            <span className="material-symbols-outlined text-[18px] text-accent">shield</span>
+            <span>{getT(settings.locale).authenticator}</span>
+          </button>
           <button
             type="button"
             onClick={() => setItToolboxModalOpen(true)}
@@ -1240,6 +1256,11 @@ export default function Dashboard({ initialAddBookmark }: DashboardProps) {
       />
 
       <ITToolboxModal open={itToolboxModalOpen} onClose={() => setItToolboxModalOpen(false)} />
+      <AuthenticatorModal
+        open={authenticatorModalOpen}
+        onClose={() => setAuthenticatorModalOpen(false)}
+        userId={user?.id}
+      />
 
       <BoardModal
         open={boardModalOpen}
