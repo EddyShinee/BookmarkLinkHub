@@ -17,6 +17,9 @@ export interface AppSettings {
   categoryColumns: 2 | 3 | 4 | 5 | 6;
   theme: Theme;
   backgroundColor: string;
+  backgroundMode: 'color' | 'image';
+  backgroundImageUrl: string | null;
+  backgroundOverlayOpacity: number; // 0-100
   categoryCardHeight: CategoryCardHeight;
   openLinkIn: OpenLinkIn;
   dragDrop: DragDropSettings;
@@ -28,6 +31,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   categoryColumns: 4,
   theme: 'dark',
   backgroundColor: '#0F172A',
+  backgroundMode: 'color',
+  backgroundImageUrl: null,
+  backgroundOverlayOpacity: 90,
   categoryCardHeight: 'auto',
   openLinkIn: 'new_tab',
   dragDrop: {

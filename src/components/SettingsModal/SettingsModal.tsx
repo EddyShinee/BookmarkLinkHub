@@ -31,6 +31,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
   const s = useSettings();
   const t = getT(s.locale);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bgImageInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
@@ -130,7 +131,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.backgroundColor}</SettingLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 mb-2">
                   {BACKGROUND_COLORS.map((color) => (
                     <button
                       key={color}
@@ -143,6 +144,88 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       aria-label={color}
                     />
                   ))}
+                </div>
+                <div className="mt-2 space-y-2">
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => s.setBackgroundMode('color')}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium border ${
+                        s.backgroundMode === 'color'
+                          ? 'bg-accent/20 border-accent text-accent'
+                          : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                      }`}
+                    >
+                      {t.backgroundModeColor}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setBackgroundMode('image')}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium border ${
+                        s.backgroundMode === 'image'
+                          ? 'bg-accent/20 border-accent text-accent'
+                          : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                      }`}
+                    >
+                      {t.backgroundModeImage}
+                    </button>
+                  </div>
+
+                  {s.backgroundMode === 'image' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <SettingLabel>{t.backgroundImage}</SettingLabel>
+                        <input
+                          type="text"
+                          value={s.backgroundImageUrl ?? ''}
+                          onChange={(e) => s.setBackgroundImageUrl(e.target.value || null)}
+                          placeholder={t.backgroundImageUrl}
+                          className="w-full px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+                        />
+                        <input
+                          ref={bgImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                const url = reader.result as string;
+                                s.setBackgroundImageUrl(url);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => bgImageInputRef.current?.click()}
+                          className="inline-flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg bg-white/5 border border-white/10 text-[11px] text-text-secondary hover:bg-white/10 hover:text-white transition"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">upload</span>
+                          {t.backgroundImageUpload}
+                        </button>
+                      </div>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-text-secondary">{t.backgroundOverlayOpacity}</span>
+                          <span className="text-[11px] text-text-muted">{s.backgroundOverlayOpacity}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={s.backgroundOverlayOpacity}
+                          onChange={(e) => s.setBackgroundOverlayOpacity(Number(e.target.value))}
+                          className="w-full accent-accent"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </SettingCard>
 

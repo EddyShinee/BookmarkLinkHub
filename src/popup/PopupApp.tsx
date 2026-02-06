@@ -5,6 +5,7 @@ import { useBookmarks } from '../hooks/useBookmarks';
 import { useCategories } from '../hooks/useCategories';
 import { useAuthenticatorEntries, type AuthenticatorEntry } from '../hooks/useAuthenticatorEntries';
 import { getT } from '../lib/i18n';
+import Toast from '../components/Toast';
 import { generateTOTP, getTimeRemaining } from '../lib/totp';
 import type { Bookmark } from '../hooks/useBookmarks';
 
@@ -43,9 +44,10 @@ export default function PopupApp() {
   }, []);
 
   if (authLoading) {
+    const t = getT(settings.locale);
     return (
       <div className="w-full h-full flex items-center justify-center bg-[#151b28]">
-        <div className="animate-pulse text-[#90a4cb] text-sm">Loading...</div>
+        <Toast message={t.loadingAuth} type="info" open={true} onClose={() => {}} />
       </div>
     );
   }
@@ -144,8 +146,35 @@ function PopupBookmarksTab({
   t: ReturnType<typeof getT>;
 }) {
   const { boards, loading } = useBookmarks(userId);
-  const firstBoardId = boards[0]?.id ?? null;
-  const { categories, loading: catLoading } = useCategories(firstBoardId);
+  const [selectedBoardId, setSelectedBoardId] = React.useState<string | null>(null);
+  const effectiveBoardId = selectedBoardId ?? boards[0]?.id ?? null;
+  const { categories, loading: catLoading } = useCategories(effectiveBoardId);
+
+  // Lấy board mở gần nhất từ chrome.storage.local (cùng key với Dashboard)
+  React.useEffect(() => {
+    if (!userId) return;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.get(['lastSelectedBoardId'], (result) => {
+          const stored = result.lastSelectedBoardId as string | undefined;
+          if (stored && boards.some((b) => b.id === stored)) {
+            setSelectedBoardId(stored);
+          } else if (boards[0]?.id) {
+            setSelectedBoardId(boards[0].id);
+          }
+        });
+      } else if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('lastSelectedBoardId');
+        if (stored && boards.some((b) => b.id === stored)) {
+          setSelectedBoardId(stored);
+        } else if (boards[0]?.id) {
+          setSelectedBoardId(boards[0].id);
+        }
+      }
+    } catch {
+      if (!selectedBoardId && boards[0]?.id) setSelectedBoardId(boards[0].id);
+    }
+  }, [userId, boards, selectedBoardId]);
 
   if (!userId) {
     return (

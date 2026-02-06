@@ -23,9 +23,11 @@ import AuthenticatorModal from '../components/AuthenticatorModal';
 import CategoryModal from '../components/CategoryModal';
 import BookmarkModal from '../components/BookmarkModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Toast, { type ToastType } from '../components/Toast';
 import { getT } from '../lib/i18n';
 import { supabase } from '../lib/supabaseClient';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
+import { parseNetscapeBookmarksHtml } from '../lib/parseBookmarksHtml';
 
 /** Fallback dot colors when category.color is not set (schema default #818CF8 = accent) */
 const FALLBACK_DOT_COLORS = [
@@ -174,12 +176,47 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     danger?: boolean;
     onConfirm: () => void;
   }>({ open: false, title: '', message: '', onConfirm: () => {} });
-
   const [draggedBoardId, setDraggedBoardId] = useState<string | null>(null);
   const [dropBoardIndex, setDropBoardIndex] = useState<number | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [draggedBookmark, setDraggedBookmark] = useState<{ id: string; categoryId: string } | null>(null);
   const [dropBookmarkTarget, setDropBookmarkTarget] = useState<{ id: string; categoryId: string; index: number } | null>(null);
+
+  const [importLoading, setImportLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType }>({ message: '', type: 'success' });
+
+  // Toast Loading cho các trạng thái loading khác
+  useEffect(() => {
+    const tLoc = getT(settings.locale);
+    if (boardsLoading) {
+      setToast({ message: tLoc.loadingBoards, type: 'info' });
+    } else if (toast.message === tLoc.loadingBoards) {
+      setToast((p) => ({ ...p, message: '' }));
+    }
+  }, [boardsLoading, settings.locale, toast.message]);
+
+  useEffect(() => {
+    const tLoc = getT(settings.locale);
+    if (categoriesLoading) {
+      const boardName = boards.find((b) => b.id === selectedBoardId)?.name;
+      const msg = boardName ? `${tLoc.loadingBoardPrefix} ${boardName}...` : tLoc.loadingCategories;
+      setToast({ message: msg, type: 'info' });
+    } else if (
+      toast.message === tLoc.loadingCategories ||
+      toast.message?.startsWith(`${tLoc.loadingBoardPrefix} `)
+    ) {
+      setToast((p) => ({ ...p, message: '' }));
+    }
+  }, [categoriesLoading, settings.locale, toast.message, boards, selectedBoardId]);
+
+  useEffect(() => {
+    const tLoc = getT(settings.locale);
+    if (searchDataLoading) {
+      setToast({ message: tLoc.loadingSearch, type: 'info' });
+    } else if (toast.message === tLoc.loadingSearch) {
+      setToast((p) => ({ ...p, message: '' }));
+    }
+  }, [searchDataLoading, settings.locale, toast.message]);
 
   const boardMenuRef = useRef<HTMLDivElement>(null);
   const boardTriggerRef = useRef<HTMLButtonElement>(null);
@@ -434,21 +471,91 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   };
 
   const handleImportFile = (file: File) => {
+    setImportLoading(true);
     const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
-      if (file.name.endsWith('.json')) {
-        try {
-          const data = JSON.parse(text);
-          console.log('Import JSON (parse only, chưa ghi Supabase):', data);
-          alert('Import JSON: đã đọc file. Ghi lên Supabase sẽ bổ sung sau.');
-        } catch {
-          alert('File JSON không hợp lệ.');
+    reader.onload = async () => {
+      try {
+        const text = reader.result as string;
+        if (file.name.endsWith('.json')) {
+          try {
+            const data = JSON.parse(text);
+            console.log('Import JSON (parse only, chưa ghi Supabase):', data);
+            setToast({ message: getT(settings.locale).importJsonNotSupported, type: 'info' });
+          } catch {
+            setToast({ message: getT(settings.locale).importJsonInvalid, type: 'error' });
+          }
+          setImportLoading(false);
+          return;
         }
-      } else {
-        console.log('Import HTML (parse only, chưa ghi Supabase):', text.slice(0, 500));
-        alert('Import HTML: đã đọc file. Ghi lên Supabase sẽ bổ sung sau.');
+        // Import HTML (Netscape Bookmark format)
+        if (!user?.id) {
+          setToast({ message: getT(settings.locale).importLoginRequired, type: 'error' });
+          setImportLoading(false);
+          return;
+        }
+        const parsed = parseNetscapeBookmarksHtml(text);
+        if (parsed.length === 0) {
+          setToast({ message: getT(settings.locale).importHtmlEmpty, type: 'error' });
+          setImportLoading(false);
+          return;
+        }
+        let boardOrder = boards.length === 0 ? 0 : Math.max(...boards.map((b) => b.sort_order), 0);
+        for (const board of parsed) {
+          const { data: newBoard, error: boardErr } = await supabase
+            .from('boards')
+            .insert({
+              user_id: user.id,
+              name: board.name || 'Imported',
+              sort_order: ++boardOrder,
+            })
+            .select('id')
+            .single();
+          if (boardErr || !newBoard) {
+            console.error('Import board failed', boardErr);
+            continue;
+          }
+          let categoryOrder = 0;
+          for (const cat of board.categories) {
+            const { data: newCat, error: catErr } = await supabase
+              .from('categories')
+              .insert({
+                board_id: newBoard.id,
+                name: cat.name || 'Uncategorized',
+                sort_order: categoryOrder++,
+              })
+              .select('id')
+              .single();
+            if (catErr || !newCat) continue;
+            let bookmarkOrder = 0;
+            for (const bm of cat.bookmarks) {
+              await supabase.from('bookmarks').insert({
+                category_id: newCat.id,
+                url: bm.url,
+                title: bm.title || bm.url,
+                sort_order: bookmarkOrder++,
+              });
+            }
+          }
+        }
+        await refetchBoards();
+        if (selectedBoardId) await refetchCategories();
+        const totalCats = parsed.reduce((s, b) => s + b.categories.length, 0);
+        const totalBms = parsed.reduce((s, b) => s + b.categories.reduce((t, c) => t + c.bookmarks.length, 0), 0);
+        const tMsg = getT(settings.locale).importSuccessFormat;
+        setToast({
+          message: tMsg.replace('{0}', String(parsed.length)).replace('{1}', String(totalCats)).replace('{2}', String(totalBms)),
+          type: 'success',
+        });
+      } catch (e) {
+        console.error('Import HTML failed', e);
+        setToast({ message: getT(settings.locale).importHtmlFailed, type: 'error' });
+      } finally {
+        setImportLoading(false);
       }
+    };
+    reader.onerror = () => {
+      setToast({ message: getT(settings.locale).importHtmlFailed, type: 'error' });
+      setImportLoading(false);
     };
     reader.readAsText(file);
   };
@@ -908,9 +1015,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
-          {boardsLoading && (
-            <div className="px-2 py-1.5 text-text-muted text-xs">Đang tải...</div>
-          )}
+          {/* Boards loading: hiển thị Toast thay vì text inline */}
           {boards.map((board, boardIndex) => (
             <React.Fragment key={board.id}>
               {settings.dragDrop.board && draggedBoardId && dropBoardIndex === boardIndex && (
@@ -987,13 +1092,24 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
       {/* Main */}
       <main
-        className={`flex-1 flex flex-col min-w-0 bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center relative transition-[margin] duration-200 ${
+        className={`flex-1 flex flex-col min-w-0 bg-cover bg-center relative transition-[margin] duration-200 ${
           sidebarOpen ? 'md:ml-64' : 'md:ml-0'
         }`}
+        style={
+          settings.backgroundMode === 'image' && settings.backgroundImageUrl
+            ? { backgroundImage: `url('${settings.backgroundImageUrl}')` }
+            : undefined
+        }
       >
         <div
           className="absolute inset-0 backdrop-blur-[2px] z-0"
-          style={{ backgroundColor: `${settings.backgroundColor}E6` }}
+          style={{
+            backgroundColor: `${settings.backgroundColor}${
+              Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
+                .toString(16)
+                .padStart(2, '0')
+            }`,
+          }}
         />
         <header className="h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b border-white/10 bg-main/80 backdrop-blur-md">
           <div className="flex items-center flex-1 max-w-md">
@@ -1095,9 +1211,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           )}
           {searchTerm && (
             <div className="py-3">
-              {searchDataLoading && (
-                <p className="text-text-muted text-xs">Đang tìm kiếm...</p>
-              )}
+              {/* Global search loading: dùng Toast thay vì text inline */}
               {!searchDataLoading && globalSearchResults && (
                 <div className="space-y-4">
                   <div>
@@ -1122,7 +1236,9 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
                     )}
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">Categories</p>
+                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                      {boards.find((b) => b.id === selectedBoardId)?.name ?? 'Categories'}
+                    </p>
                     {globalSearchResults.categoryMatches.length === 0 ? (
                       <p className="text-xs text-text-muted/70">Không có category phù hợp.</p>
                     ) : (
@@ -1181,9 +1297,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           )}
           {!searchTerm && (
             <>
-              {categoriesLoading && (
-                <div className="text-text-muted text-xs py-6">Đang tải categories...</div>
-              )}
+              {/* Categories loading: dùng Toast thay vì text inline */}
               {!categoriesLoading && categories.length === 0 && selectedBoardId && (
                 <div className="text-text-muted text-xs py-6 text-center">
                   <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
@@ -1376,6 +1490,22 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
         danger={confirmDialog.danger}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((d) => ({ ...d, open: false }))}
+      />
+
+      {importLoading && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-sidebar border border-white/10 px-6 py-5 shadow-xl">
+            <span className="material-symbols-outlined animate-spin text-[32px] text-accent">progress_activity</span>
+            <span className="text-sm font-medium text-white">{getT(settings.locale).importLoading}</span>
+          </div>
+        </div>
+      )}
+
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        open={!!toast.message}
+        onClose={() => setToast((p) => ({ ...p, message: '' }))}
       />
 
       <MoveBookmarkModal

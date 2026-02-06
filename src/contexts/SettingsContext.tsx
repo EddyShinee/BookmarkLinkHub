@@ -15,6 +15,9 @@ interface SettingsContextValue extends AppSettings {
   setCategoryColumns: (v: 2 | 3 | 4 | 5 | 6) => void;
   setTheme: (v: Theme) => void;
   setBackgroundColor: (v: string) => void;
+  setBackgroundMode: (v: 'color' | 'image') => void;
+  setBackgroundImageUrl: (v: string | null) => void;
+  setBackgroundOverlayOpacity: (v: number) => void;
   setCategoryCardHeight: (v: CategoryCardHeight) => void;
   setOpenLinkIn: (v: OpenLinkIn) => void;
   setDragDrop: (v: Partial<DragDropSettings>) => void;
@@ -59,6 +62,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setCategoryColumns: (v) => update({ categoryColumns: v }),
     setTheme: (v) => update({ theme: v }),
     setBackgroundColor: (v) => update({ backgroundColor: v }),
+    setBackgroundMode: (v) => update({ backgroundMode: v }),
+    setBackgroundImageUrl: (v) => update({ backgroundImageUrl: v }),
+    setBackgroundOverlayOpacity: (v) => update({ backgroundOverlayOpacity: v }),
     setCategoryCardHeight: (v) => update({ categoryCardHeight: v }),
     setOpenLinkIn: (v) => update({ openLinkIn: v }),
     setDragDrop: (v) => update({ dragDrop: { ...settings.dragDrop, ...v } }),

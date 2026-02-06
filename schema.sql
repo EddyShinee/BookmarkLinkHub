@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     board_id UUID NOT NULL REFERENCES public.boards(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    color TEXT DEFAULT '#818CF8',
+    color TEXT DEFAULT '#818CF826',
     icon TEXT DEFAULT 'folder',
     bg_opacity INTEGER DEFAULT 15,
     sort_order INTEGER DEFAULT 0,
