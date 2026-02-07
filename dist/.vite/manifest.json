@@ -5,30 +5,30 @@
     "src": "../../../../@crx/manifest",
     "isEntry": true
   },
-  "_globals-!~{006}~.js": {
-    "file": "assets/globals-BYITNbgL.css",
-    "src": "_globals-!~{006}~.js"
-  },
-  "_globals-SoA60Zn6.js": {
-    "file": "assets/globals-SoA60Zn6.js",
-    "name": "globals",
-    "css": [
-      "assets/globals-BYITNbgL.css"
+  "_Toast-Dg8RW9Rk.js": {
+    "file": "assets/Toast-Dg8RW9Rk.js",
+    "name": "Toast",
+    "imports": [
+      "_globals-DmyaZ-jK.js"
     ]
   },
-  "_jsQR-CSvrzA8D.js": {
-    "file": "assets/jsQR-CSvrzA8D.js",
+  "_globals-!~{006}~.js": {
+    "file": "assets/globals-B3bMGgpi.css",
+    "src": "_globals-!~{006}~.js"
+  },
+  "_globals-DmyaZ-jK.js": {
+    "file": "assets/globals-DmyaZ-jK.js",
+    "name": "globals",
+    "css": [
+      "assets/globals-B3bMGgpi.css"
+    ]
+  },
+  "_jsQR-DqtlwVZ_.js": {
+    "file": "assets/jsQR-DqtlwVZ_.js",
     "name": "jsQR",
     "isDynamicEntry": true,
     "imports": [
-      "_globals-SoA60Zn6.js"
-    ]
-  },
-  "_totp-Cd1Vogd2.js": {
-    "file": "assets/totp-Cd1Vogd2.js",
-    "name": "totp",
-    "imports": [
-      "_globals-SoA60Zn6.js"
+      "_globals-DmyaZ-jK.js"
     ]
   },
   "src/background/index.ts": {
@@ -38,35 +38,35 @@
     "isEntry": true
   },
   "src/newtab/index.html": {
-    "file": "assets/index.html-Dvh90rd-.js",
+    "file": "assets/index.html-C0tw-5Pf.js",
     "name": "index.html",
     "src": "src/newtab/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-SoA60Zn6.js",
-      "_totp-Cd1Vogd2.js"
+      "_globals-DmyaZ-jK.js",
+      "_Toast-Dg8RW9Rk.js"
     ],
     "dynamicImports": [
-      "_jsQR-CSvrzA8D.js"
+      "_jsQR-DqtlwVZ_.js"
     ]
   },
   "src/options/index.html": {
-    "file": "assets/index.html-BiI601i7.js",
+    "file": "assets/index.html-CUliXAJW.js",
     "name": "index.html",
     "src": "src/options/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-SoA60Zn6.js"
+      "_globals-DmyaZ-jK.js"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-BQEMw_EC.js",
+    "file": "assets/index.html-VZVYo5QF.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-SoA60Zn6.js",
-      "_totp-Cd1Vogd2.js"
+      "_globals-DmyaZ-jK.js",
+      "_Toast-Dg8RW9Rk.js"
     ],
     "css": [
       "assets/index-D4TVfa0X.css"

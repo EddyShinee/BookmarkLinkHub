@@ -189,6 +189,7 @@ function JwtTab() {
   const [encodeSecret, setEncodeSecret] = useState('');
   const [encodedJwt, setEncodedJwt] = useState('');
   const [jwtError, setJwtError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'decode' | 'encode'>('decode');
 
   const decodeJwt = async () => {
     setJwtError(null);
@@ -260,59 +261,127 @@ function JwtTab() {
     }
   };
 
+  // Tự động decode khi có token / secret
+  React.useEffect(() => {
+    const raw = input.trim();
+    if (!raw) {
+      setHeaderOut('');
+      setPayloadOut('');
+      setSignatureValid(null);
+      setJwtError(null);
+      return;
+    }
+    decodeJwt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, secret]);
+
+  // Tự động encode khi thay đổi payload / secret
+  React.useEffect(() => {
+    if (!encodePayload.trim()) {
+      setEncodedJwt('');
+      setJwtError(null);
+      return;
+    }
+    encodeJwt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encodePayload, encodeSecret]);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-5 h-full min-h-0 items-stretch">
-      <div className="flex flex-col min-h-0 gap-4 overflow-y-auto flex-1">
-        <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3.5 space-y-2.5 flex-shrink-0">
-          <Label>Decode</Label>
-          <TextArea value={input} onChange={setInput} placeholder="Dán token JWT" rows={3} />
-          <input
-            type="text"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder="Secret (verify)"
-            className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
-          />
-          {signatureValid !== null && (
-            <p className={`text-[11px] ${signatureValid ? 'text-emerald-400' : 'text-red-400'}`}>
-              Chữ ký: {signatureValid ? 'Hợp lệ' : 'Không hợp lệ'}
-            </p>
-          )}
-          {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 h-full min-h-0 items-stretch">
+      <div className="flex flex-col min-h-0 gap-3 overflow-y-auto flex-1">
+        <div className="flex gap-1.5 mb-1">
+          <button
+            type="button"
+            onClick={() => setMode('decode')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border ${
+              mode === 'decode'
+                ? 'bg-violet-500/20 border-violet-400 text-violet-200'
+                : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+            }`}
+          >
+            Decode
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('encode')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border ${
+              mode === 'encode'
+                ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+            }`}
+          >
+            Encode
+          </button>
         </div>
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3.5 space-y-2.5 flex-shrink-0">
-          <Label>Encode</Label>
-          <TextArea value={encodePayload} onChange={setEncodePayload} placeholder='{"sub":"user123","exp":9999999999}' rows={4} />
-          <input
-            type="text"
-            value={encodeSecret}
-            onChange={(e) => setEncodeSecret(e.target.value)}
-            placeholder="Secret"
-            className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
-          />
-        </div>
-      </div>
-      <div className="flex flex-col justify-center gap-2.5 flex-shrink-0">
-        <ActionBtn onClick={decodeJwt} variant="info">Decode</ActionBtn>
-        <ActionBtn onClick={encodeJwt} variant="warning">Encode</ActionBtn>
-      </div>
-      <div className="flex flex-col min-h-0 gap-4 overflow-y-auto flex-1">
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0">
-          <Label>Header</Label>
-          <TextArea value={headerOut} onChange={undefined} readOnly rows={3} className="min-h-[64px]" />
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0">
-          <Label>Payload</Label>
-          <TextArea value={payloadOut} onChange={setPayloadOut} rows={4} className="min-h-[80px]" />
-          <div className="mt-1.5 flex gap-2">
-            <ActionBtn onClick={beautifyPayload} variant="success">Làm đẹp</ActionBtn>
-            <ActionBtn onClick={minifyPayload} variant="warning">Làm gọn</ActionBtn>
+
+        {mode === 'decode' ? (
+          <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3.5 space-y-2.5 flex-shrink-0">
+            <Label>JWT</Label>
+            <TextArea value={input} onChange={setInput} placeholder="Dán token JWT" rows={6} />
+            <input
+              type="text"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              placeholder="Secret (verify)"
+              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
+            />
+            {signatureValid !== null && (
+              <p className={`text-[11px] ${signatureValid ? 'text-emerald-400' : 'text-red-400'}`}>
+                Chữ ký: {signatureValid ? 'Hợp lệ' : 'Không hợp lệ'}
+              </p>
+            )}
+            {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
           </div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0">
-          <Label>Token</Label>
-          <TextArea value={encodedJwt} onChange={undefined} readOnly rows={2} placeholder="JWT sau encode" className="min-h-[56px]" />
-        </div>
+        ) : (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3.5 space-y-2.5 flex-shrink-0">
+            <Label>Payload (JSON)</Label>
+            <TextArea
+              value={encodePayload}
+              onChange={setEncodePayload}
+              placeholder='{"sub":"user123","exp":9999999999}'
+              rows={8}
+            />
+            <input
+              type="text"
+              value={encodeSecret}
+              onChange={(e) => setEncodeSecret(e.target.value)}
+              placeholder="Secret"
+              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
+            />
+            {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col min-h-0 gap-4 overflow-y-auto flex-1">
+        {mode === 'decode' ? (
+          <>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0">
+              <Label>Header</Label>
+              <TextArea value={headerOut} onChange={undefined} readOnly rows={3} className="min-h-[64px]" />
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0 flex-1">
+              <Label>Payload</Label>
+              <TextArea value={payloadOut} onChange={setPayloadOut} rows={10} className="min-h-[140px] flex-1" />
+              <div className="mt-1.5 flex gap-2">
+                <ActionBtn onClick={beautifyPayload} variant="success">Làm đẹp</ActionBtn>
+                <ActionBtn onClick={minifyPayload} variant="warning">Làm gọn</ActionBtn>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0 flex-1">
+            <Label>JWT sau Encode</Label>
+            <TextArea
+              value={encodedJwt}
+              onChange={undefined}
+              readOnly
+              rows={12}
+              placeholder="JWT sau encode"
+              className="min-h-[160px] flex-1"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -409,21 +478,21 @@ function Base64Tab() {
 }
 
 const TAB_STYLES: Record<TabId, { active: string; icon: string }> = {
-  json: { active: 'border-accent text-accent bg-accent/10', icon: 'data_object' },
   jwt: { active: 'border-violet-500 text-violet-400 bg-violet-500/10', icon: 'token' },
+  json: { active: 'border-accent text-accent bg-accent/10', icon: 'data_object' },
   url: { active: 'border-emerald-500 text-emerald-400 bg-emerald-500/10', icon: 'link' },
   base64: { active: 'border-amber-500 text-amber-400 bg-amber-500/10', icon: 'code' },
 };
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'json', label: 'JSON' },
   { id: 'jwt', label: 'JWT' },
+  { id: 'json', label: 'JSON' },
   { id: 'url', label: 'URL' },
   { id: 'base64', label: 'Base64' },
 ];
 
 export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('json');
+  const [activeTab, setActiveTab] = useState<TabId>('jwt');
 
   if (!open) return null;
 
