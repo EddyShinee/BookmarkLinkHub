@@ -28,9 +28,16 @@ const manifest = {
     type: 'module',
   },
   content_security_policy: {
-    // connect-src cần cả ws:// cho Vite HMR (WebSocket)
     extension_pages:
-      "script-src 'self' http://localhost:5173 http://127.0.0.1:5173; object-src 'self'; connect-src 'self' http://localhost:5173 http://127.0.0.1:5173 ws://localhost:5173 ws://127.0.0.1:5173 https://*.supabase.co https://*.supabase.in https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;",
+      process.env.NODE_ENV === 'production'
+        ? "script-src 'self'; object-src 'self'; connect-src 'self' https://*.supabase.co https://*.supabase.in https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;"
+        : "script-src 'self' http://localhost:5173 http://127.0.0.1:5173; object-src 'self'; connect-src 'self' http://localhost:5173 http://127.0.0.1:5173 ws://localhost:5173 ws://127.0.0.1:5173 https://*.supabase.co https://*.supabase.in https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;",
+  },
+  // Chrome Web Store yêu cầu ít nhất icon 128x128
+  icons: {
+    16: 'icons/16.png',
+    48: 'icons/48.png',
+    128: 'icons/128.png',
   },
 };
 

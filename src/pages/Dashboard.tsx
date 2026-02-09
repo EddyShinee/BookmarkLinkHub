@@ -24,6 +24,8 @@ import CategoryModal from '../components/CategoryModal';
 import BookmarkModal from '../components/BookmarkModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Toast, { type ToastType } from '../components/Toast';
+import SearchSpotlightModal, { type SpotlightItem } from '../components/SearchSpotlightModal';
+import { useSearchShortcut } from '../hooks/useSearchShortcut';
 import { getT } from '../lib/i18n';
 import { supabase } from '../lib/supabaseClient';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
@@ -185,6 +187,9 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const [importLoading, setImportLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType }>({ message: '', type: 'success' });
 
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
   // Toast Loading cho các trạng thái loading khác
   useEffect(() => {
     const tLoc = getT(settings.locale);
@@ -242,6 +247,21 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     );
     return { boardMatches, categoryMatches, bookmarkMatches };
   }, [searchTerm, boards, allCategories, allBookmarks]);
+
+  const spotlightItems: SpotlightItem[] = useMemo(() => {
+    if (!allBookmarks.length) return [];
+    return allBookmarks.map((bm) => {
+      const cat = allCategories.find((c) => c.id === bm.category_id);
+      const board = cat ? boards.find((b) => b.id === cat.board_id) : undefined;
+      return {
+        id: bm.id,
+        title: bm.title || bm.url,
+        url: bm.url,
+        boardName: board?.name,
+        categoryName: cat?.name,
+      };
+    });
+  }, [allBookmarks, allCategories, boards]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -433,6 +453,20 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
     document.documentElement.classList.toggle('light', settings.theme === 'light');
   }, [settings.theme]);
+
+  const focusSearch = useCallback(() => {
+    if (spotlightOpen) return;
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+      searchInputRef.current.select();
+    }
+  }, [spotlightOpen]);
+
+  const openSpotlight = useCallback(() => {
+    setSpotlightOpen(true);
+  }, []);
+
+  useSearchShortcut(openSpotlight);
 
   const handleSignOut = () => supabase.auth.signOut();
 
@@ -1126,6 +1160,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
             <div className="relative flex-1 group">
               <span className="material-symbols-outlined text-text-muted absolute left-3 top-1/2 -translate-y-1/2 text-[18px] transition-colors group-focus-within:text-accent">search</span>
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search your bookmarks..."
                 value={searchQuery}
@@ -1514,6 +1549,16 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
         boards={boards}
         onClose={() => setBookmarkToMove(null)}
         onMove={(categoryId) => bookmarkToMove && handleMoveBookmark(bookmarkToMove, categoryId)}
+      />
+
+      <SearchSpotlightModal
+        open={spotlightOpen}
+        items={spotlightItems}
+        onClose={() => setSpotlightOpen(false)}
+        onOpen={(url) => {
+          openBookmark(url);
+          setSpotlightOpen(false);
+        }}
       />
     </div>
   );
