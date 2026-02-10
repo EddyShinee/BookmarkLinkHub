@@ -29,6 +29,7 @@ export default function SearchSpotlightModal({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -44,18 +45,48 @@ export default function SearchSpotlightModal({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((item) => {
-      const title = item.title?.toLowerCase() ?? '';
-      const url = item.url?.toLowerCase() ?? '';
-      const board = item.boardName?.toLowerCase() ?? '';
-      const category = item.categoryName?.toLowerCase() ?? '';
-      return (
-        title.includes(q) ||
-        url.includes(q) ||
-        board.includes(q) ||
-        category.includes(q)
-      );
+
+    const scored = items
+      .map((item, originalIndex) => {
+        const title = item.title?.toLowerCase() ?? '';
+        const url = item.url?.toLowerCase() ?? '';
+        const board = item.boardName?.toLowerCase() ?? '';
+        const category = item.categoryName?.toLowerCase() ?? '';
+
+        let score = 0;
+
+        // Strongest: title starts with query
+        if (title.startsWith(q)) score += 120;
+
+        // Title contains word that starts with query
+        const titleWords = title.split(/\s+/);
+        if (titleWords.some((w) => w.startsWith(q))) score += 90;
+
+        // Title substring match
+        if (score === 0 && title.includes(q)) score += 70;
+
+        // Board / category matches
+        if (board.startsWith(q) || category.startsWith(q)) score += 50;
+        else if (board.includes(q) || category.includes(q)) score += 35;
+
+        // URL host / path matches
+        if (url.startsWith(q)) score += 40;
+        else if (url.includes(q)) score += 20;
+
+        // Slight preference for shorter titles when scores tie
+        if (score > 0) score += Math.max(0, 20 - title.length * 0.2);
+
+        return { item, score, originalIndex };
+      })
+      .filter((x) => x.score > 0);
+
+    // Sort by score desc, then by original order for stability
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.originalIndex - b.originalIndex;
     });
+
+    return scored.map((x) => x.item);
   }, [items, query]);
 
   useEffect(() => {
@@ -67,6 +98,21 @@ export default function SearchSpotlightModal({
       setActiveIndex(filtered.length - 1);
     }
   }, [filtered, activeIndex]);
+
+  // Ensure active item is visible when navigating with arrow keys
+  useEffect(() => {
+    if (!filtered.length) return;
+    const container = listRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>(
+      `[data-spotlight-index="${activeIndex}"]`
+    );
+    if (!el) return;
+    // Scroll the active option into view within the scroll container
+    el.scrollIntoView({
+      block: 'nearest',
+    });
+  }, [activeIndex, filtered]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!filtered.length) {
@@ -139,7 +185,7 @@ export default function SearchSpotlightModal({
           </button>
         </div>
 
-        <div className="max-h-[50vh] overflow-y-auto py-1">
+        <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
           {filtered.length === 0 ? (
             <p className="px-4 py-4 text-xs text-text-muted">
               {query.trim()
@@ -151,7 +197,7 @@ export default function SearchSpotlightModal({
               {filtered.map((item, index) => {
                 const isActive = index === activeIndex;
                 return (
-                  <li key={item.id}>
+                  <li key={item.id} data-spotlight-index={index}>
                     <button
                       type="button"
                       onClick={() => onOpen(item.url)}

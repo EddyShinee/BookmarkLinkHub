@@ -33,3 +33,40 @@ body {
 .sidebar-gradient {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 1) 100%);
 }
+
+/* Stable, dense masonry-style layout for Dashboard categories */
+.category-grid {
+  column-count: 1;
+  column-gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .category-grid {
+    column-count: 4; /* số cột cố định cho new tab */
+  }
+}
+
+.category-grid-item {
+  cursor: grab;
+  break-inside: avoid;
+  margin-bottom: 16px; /* khít dọc như masonry */
+}
+
+.category-grid-item--dragged {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+
+.category-grid-item--target {
+  position: relative;
+}
+
+.category-grid-item--target::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  border: 2px dashed rgba(129, 140, 248, 0.9);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
+  pointer-events: none;
+}

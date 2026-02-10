@@ -36,6 +36,11 @@ const FALLBACK_DOT_COLORS = [
   '#818CF8', '#10B981', '#A855F7', '#FB923C', '#EC4899', '#3B82F6', '#EAB308', '#06B6D4',
 ];
 
+interface CategoryGridIndex {
+  id: string;
+  gridIndex: number;
+}
+
 function SortableCategoryCard({
   category,
   activeCategoryId,
@@ -190,6 +195,13 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Stable grid order for categories (gridIndex is single source of truth for layout)
+  const [categoryGridIndexes, setCategoryGridIndexes] = useState<CategoryGridIndex[]>([]);
+  const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
+  const [draggedCategoryGridIndex, setDraggedCategoryGridIndex] = useState<number | null>(null);
+  const [targetCategoryGridIndex, setTargetCategoryGridIndex] = useState<number | null>(null);
+  const categoryGridRef = useRef<HTMLDivElement | null>(null);
+
   // Toast Loading cho các trạng thái loading khác
   useEffect(() => {
     const tLoc = getT(settings.locale);
@@ -262,6 +274,48 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
       };
     });
   }, [allBookmarks, allCategories, boards]);
+
+  // Normalize grid indexes to be dense 0..n-1
+  const normalizeCategoryGridIndexes = useCallback((items: CategoryGridIndex[]): CategoryGridIndex[] => {
+    const sorted = [...items].sort((a, b) => a.gridIndex - b.gridIndex);
+    return sorted.map((item, idx) => ({ ...item, gridIndex: idx }));
+  }, []);
+
+  // Load category grid order from chrome.storage.local per board
+  useEffect(() => {
+    if (!selectedBoardId || categories.length === 0) {
+      setCategoryGridIndexes([]);
+      return;
+    }
+
+    const storageKey = `linkhub_category_grid_${selectedBoardId}`;
+
+    if (!(typeof chrome !== 'undefined' && chrome.storage?.local)) {
+      // Fallback in non-extension env: derive from current array order
+      const fallback = categories.map((c, idx) => ({ id: c.id, gridIndex: idx }));
+      setCategoryGridIndexes(normalizeCategoryGridIndexes(fallback));
+      return;
+    }
+
+    chrome.storage.local.get([storageKey], (result) => {
+      const stored = (result[storageKey] as CategoryGridIndex[] | undefined) ?? [];
+      const currentIds = new Set(categories.map((c) => c.id));
+
+      // Keep only entries that still exist
+      const fromStored = stored.filter((item) => currentIds.has(item.id));
+
+      // Add new categories that don't have gridIndex yet
+      const missing = categories
+        .filter((c) => !fromStored.some((item) => item.id === c.id))
+        .map((c, idx) => ({
+          id: c.id,
+          gridIndex: fromStored.length + idx,
+        }));
+
+      const merged = normalizeCategoryGridIndexes([...fromStored, ...missing]);
+      setCategoryGridIndexes(merged);
+    });
+  }, [selectedBoardId, categories, normalizeCategoryGridIndexes]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -467,6 +521,162 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   }, []);
 
   useSearchShortcut(openSpotlight);
+
+  // --- Category grid helpers ------------------------------------------------
+
+  const sortedCategoriesForGrid = useMemo(() => {
+    if (categories.length === 0) return [];
+    if (categoryGridIndexes.length === 0) {
+      // Fallback: derive from current array order
+      return categories.map((cat, idx) => ({
+        category: cat,
+        gridIndex: idx,
+      }));
+    }
+    const indexById = new Map(categoryGridIndexes.map((item) => [item.id, item.gridIndex]));
+    const withIndex = categories.map((cat, idx) => ({
+      category: cat,
+      gridIndex: indexById.get(cat.id) ?? idx,
+    }));
+    return withIndex.sort((a, b) => a.gridIndex - b.gridIndex);
+  }, [categories, categoryGridIndexes]);
+
+  const saveCategoryGridToStorage = useCallback(
+    (items: CategoryGridIndex[]) => {
+      if (!selectedBoardId) return;
+      if (!(typeof chrome !== 'undefined' && chrome.storage?.local)) return;
+      const storageKey = `linkhub_category_grid_${selectedBoardId}`;
+      chrome.storage.local.set({ [storageKey]: items }, () => {
+        // ignore callback errors
+      });
+    },
+    [selectedBoardId]
+  );
+
+  const computeCategoryTargetIndexFromMouse = (clientX: number, clientY: number): number | null => {
+    const container = categoryGridRef.current;
+    if (!container || sortedCategoriesForGrid.length === 0) return null;
+
+    // 1) Ưu tiên card nào đang nằm trực tiếp dưới con trỏ (hit-test theo rect).
+    // 2) Nếu không có card nào dưới con trỏ, mới fallback sang card có tâm gần nhất.
+    // Lưu ý: vẫn chỉ dùng gridIndex làm nguồn sắp xếp, DOM position chỉ để chọn ô đích.
+    const cards = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-category-id]')
+    );
+    if (cards.length === 0) return null;
+
+    // Hit test: card chứa điểm (clientX, clientY)
+    for (const el of cards) {
+      const rect = el.getBoundingClientRect();
+      if (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      ) {
+        const insideId = el.dataset.categoryId ?? null;
+        if (insideId) {
+          const metaInside = categoryGridIndexes.find((item) => item.id === insideId);
+          if (metaInside) return metaInside.gridIndex;
+        }
+      }
+    }
+
+    // Fallback: card có tâm gần nhất
+    let closestId: string | null = null;
+    let closestDist = Infinity;
+
+    for (const el of cards) {
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < closestDist) {
+        closestDist = distSq;
+        closestId = el.dataset.categoryId ?? null;
+      }
+    }
+
+    if (!closestId) return null;
+
+    const meta = categoryGridIndexes.find((item) => item.id === closestId);
+    if (!meta) return null;
+
+    return meta.gridIndex;
+  };
+
+  const handleCategoryDragStartGrid = (e: React.DragEvent<HTMLDivElement>, id: string) => {
+    const meta = categoryGridIndexes.find((item) => item.id === id);
+    if (!meta) return;
+    setDraggedCategoryId(id);
+    setDraggedCategoryGridIndex(meta.gridIndex);
+    setTargetCategoryGridIndex(meta.gridIndex);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleCategoryDragOverGrid = (e: React.DragEvent<HTMLDivElement>) => {
+    if (draggedCategoryId == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const index = computeCategoryTargetIndexFromMouse(e.clientX, e.clientY);
+    if (index == null) return;
+    setTargetCategoryGridIndex(index);
+  };
+
+  const handleCategoryDropGrid = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (
+      draggedCategoryId == null ||
+      draggedCategoryGridIndex == null ||
+      targetCategoryGridIndex == null
+    ) {
+      setDraggedCategoryId(null);
+      setDraggedCategoryGridIndex(null);
+      setTargetCategoryGridIndex(null);
+      return;
+    }
+
+    if (draggedCategoryGridIndex === targetCategoryGridIndex) {
+      setDraggedCategoryId(null);
+      setDraggedCategoryGridIndex(null);
+      setTargetCategoryGridIndex(null);
+      return;
+    }
+
+    setCategoryGridIndexes((prev) => {
+      const dragged = prev.find((item) => item.id === draggedCategoryId);
+      const target = prev.find((item) => item.gridIndex === targetCategoryGridIndex);
+      if (!dragged || !target) return prev;
+
+      // Swap ONLY gridIndex values, keep DOM/array order independent
+      const updated = prev.map((item) => {
+        if (item.id === dragged.id) {
+          return { ...item, gridIndex: target.gridIndex };
+        }
+        if (item.id === target.id) {
+          return { ...item, gridIndex: dragged.gridIndex };
+        }
+        return item;
+      });
+
+      const normalized = normalizeCategoryGridIndexes(updated);
+      saveCategoryGridToStorage(normalized);
+      return normalized;
+    });
+
+    setDraggedCategoryId(null);
+    setDraggedCategoryGridIndex(null);
+    setTargetCategoryGridIndex(null);
+  };
+
+  const handleCategoryDragEndGrid = () => {
+    setDraggedCategoryId(null);
+    setDraggedCategoryGridIndex(null);
+    setTargetCategoryGridIndex(null);
+  };
 
   const handleSignOut = () => supabase.auth.signOut();
 
@@ -1340,120 +1550,87 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
                 </div>
               )}
               <div
-                className={`gap-2 space-y-2 columns-1 ${
-                  settings.categoryColumns === 2 ? 'md:columns-2' :
-                  settings.categoryColumns === 3 ? 'md:columns-3' :
-                  settings.categoryColumns === 5 ? 'md:columns-5' :
-                  settings.categoryColumns === 6 ? 'md:columns-6' :
-                  'md:columns-4'
-                }`}
+                ref={categoryGridRef}
+                className="category-grid"
+                onDragOver={handleCategoryDragOverGrid}
+                onDrop={handleCategoryDropGrid}
               >
-                {settings.dragDrop.category ? (
-                  <DndContext
-                    sensors={categorySensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={({ active }) => setActiveCategoryId(active.id as string)}
-                    onDragEnd={handleCategoryDragEnd}
-                  >
-                    <SortableContext items={categories.map((c) => c.id)} strategy={rectSortingStrategy}>
-                      {categories.map((cat, idx) => (
-                        <SortableCategoryCard
-                          key={cat.id}
-                          category={cat}
-                          activeCategoryId={activeCategoryId}
-                          fallbackDotColor={FALLBACK_DOT_COLORS[idx % FALLBACK_DOT_COLORS.length]}
-                          searchQuery={searchQuery}
-                          onOpenBookmark={openBookmark}
-                          cardHeight={settings.categoryCardHeight}
-                        fillContent={settings.categoryColorFillContent}
-                          categoryMenuId={categoryMenuId}
-                          onOpenCategoryMenu={(id) => setCategoryMenuId((cur) => (cur === id ? null : id))}
-                          onEditCategory={() => { setCategoryEditing(cat); setCategoryModalOpen(true); setCategoryMenuId(null); }}
-                          onDuplicateCategory={() => { handleDuplicateCategory(cat); setCategoryMenuId(null); }}
-                          onDeleteCategory={() => { handleDeleteCategory(cat); setCategoryMenuId(null); }}
-                          onAddBookmark={() => { openAddBookmark(cat.id); setCategoryMenuId(null); }}
-                          onEditBookmark={(b) => { setBookmarkEditing(b); setBookmarkModalOpen(true); setCategoryMenuId(null); }}
-                          onDuplicateBookmark={handleDuplicateBookmark}
-                          onMoveBookmark={(b) => setBookmarkToMove(b)}
-                          onDeleteBookmark={handleDeleteBookmark}
-                          dragDropBookmark={settings.dragDrop.bookmark}
-                          draggedBookmark={draggedBookmark}
-                          dropBookmarkTarget={dropBookmarkTarget}
-                          onBookmarkDragStart={(e, bookmarkId) => handleBookmarkDragStart(e, bookmarkId, cat.id)}
-                          onBookmarkDragOver={(e, bookmarkId, index) => handleBookmarkDragOver(e, bookmarkId, cat.id, index)}
-                          onBookmarkDrop={handleBookmarkDrop}
-                          onBookmarkDragEnd={handleBookmarkDragEnd}
-                        />
-                      ))}
-                    </SortableContext>
-                    <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
-                      {activeCategoryId ? (() => {
-                        const cat = categories.find((c) => c.id === activeCategoryId);
-                        if (!cat) return null;
-                        const idx = categories.findIndex((c) => c.id === activeCategoryId);
-                        return (
-                      <div className="cursor-grabbing opacity-95 shadow-xl rounded-xl overflow-hidden w-[240px]">
-                            <CategoryCard
-                              category={cat}
-                              fallbackDotColor={FALLBACK_DOT_COLORS[idx % FALLBACK_DOT_COLORS.length]}
-                              searchQuery={searchQuery}
-                              onOpenBookmark={openBookmark}
-                              cardHeight={settings.categoryCardHeight}
-                          fillContent={settings.categoryColorFillContent}
-                              categoryMenuId={null}
-                              onOpenCategoryMenu={() => {}}
-                              onEditCategory={() => {}}
-                              onDeleteCategory={() => {}}
-                              onAddBookmark={() => {}}
-                              onEditBookmark={() => {}}
-                              onDeleteBookmark={() => {}}
-                              dragDropCategory={false}
-                              sortableWrapper={false}
-                              dragDropBookmark={false}
-                              draggedBookmark={null}
-                              dropBookmarkTarget={null}
-                              onBookmarkDragStart={undefined}
-                              onBookmarkDragOver={undefined}
-                              onBookmarkDrop={undefined}
-                              onBookmarkDragEnd={undefined}
-                            />
-                          </div>
-                        );
-                      })() : null}
-                    </DragOverlay>
-                  </DndContext>
-                ) : (
-                  categories.map((cat, idx) => (
-                    <CategoryCard
+                {sortedCategoriesForGrid.map(({ category: cat, gridIndex }) => {
+                  const idx = FALLBACK_DOT_COLORS.length
+                    ? gridIndex % FALLBACK_DOT_COLORS.length
+                    : 0;
+                  const isDragged = draggedCategoryId === cat.id;
+                  const isTarget =
+                    draggedCategoryId != null &&
+                    targetCategoryGridIndex != null &&
+                    gridIndex === targetCategoryGridIndex;
+
+                  return (
+                    <div
                       key={cat.id}
-                      category={cat}
-                      fallbackDotColor={FALLBACK_DOT_COLORS[idx % FALLBACK_DOT_COLORS.length]}
-                      searchQuery={searchQuery}
-                      onOpenBookmark={openBookmark}
-                      cardHeight={settings.categoryCardHeight}
-                      fillContent={settings.categoryColorFillContent}
-                      categoryMenuId={categoryMenuId}
-                      onOpenCategoryMenu={(id) => setCategoryMenuId((cur) => (cur === id ? null : id))}
-                      onEditCategory={() => { setCategoryEditing(cat); setCategoryModalOpen(true); setCategoryMenuId(null); }}
-                      onDuplicateCategory={() => { handleDuplicateCategory(cat); setCategoryMenuId(null); }}
-                      onDeleteCategory={() => { handleDeleteCategory(cat); setCategoryMenuId(null); }}
-                      onAddBookmark={() => { openAddBookmark(cat.id); setCategoryMenuId(null); }}
-                      onEditBookmark={(b) => { setBookmarkEditing(b); setBookmarkModalOpen(true); setCategoryMenuId(null); }}
-                      onDuplicateBookmark={handleDuplicateBookmark}
-                      onMoveBookmark={(b) => setBookmarkToMove(b)}
-                      onDeleteBookmark={handleDeleteBookmark}
-                      dragDropCategory={false}
-                      sortableWrapper={false}
-                      dragDropBookmark={settings.dragDrop.bookmark}
-                      draggedBookmark={draggedBookmark}
-                      dropBookmarkTarget={dropBookmarkTarget}
-                      onBookmarkDragStart={(e, bookmarkId) => handleBookmarkDragStart(e, bookmarkId, cat.id)}
-                      onBookmarkDragOver={(e, bookmarkId, index) => handleBookmarkDragOver(e, bookmarkId, cat.id, index)}
-                      onBookmarkDrop={handleBookmarkDrop}
-                      onBookmarkDragEnd={handleBookmarkDragEnd}
-                    />
-                  ))
-                )}
+                      data-category-id={cat.id}
+                      className={`category-grid-item ${
+                        isDragged ? 'category-grid-item--dragged' : ''
+                      } ${isTarget ? 'category-grid-item--target' : ''}`}
+                      draggable={settings.dragDrop.category}
+                      onDragStart={(e) =>
+                        settings.dragDrop.category && handleCategoryDragStartGrid(e, cat.id)
+                      }
+                      onDragEnd={handleCategoryDragEndGrid}
+                    >
+                      <CategoryCard
+                        category={cat}
+                        fallbackDotColor={FALLBACK_DOT_COLORS[idx]}
+                        searchQuery={searchQuery}
+                        onOpenBookmark={openBookmark}
+                        cardHeight={settings.categoryCardHeight}
+                        fillContent={settings.categoryColorFillContent}
+                        categoryMenuId={categoryMenuId}
+                        onOpenCategoryMenu={(id) =>
+                          setCategoryMenuId((cur) => (cur === id ? null : id))
+                        }
+                        onEditCategory={() => {
+                          setCategoryEditing(cat);
+                          setCategoryModalOpen(true);
+                          setCategoryMenuId(null);
+                        }}
+                        onDuplicateCategory={() => {
+                          handleDuplicateCategory(cat);
+                          setCategoryMenuId(null);
+                        }}
+                        onDeleteCategory={() => {
+                          handleDeleteCategory(cat);
+                          setCategoryMenuId(null);
+                        }}
+                        onAddBookmark={() => {
+                          openAddBookmark(cat.id);
+                          setCategoryMenuId(null);
+                        }}
+                        onEditBookmark={(b) => {
+                          setBookmarkEditing(b);
+                          setBookmarkModalOpen(true);
+                          setCategoryMenuId(null);
+                        }}
+                        onDuplicateBookmark={handleDuplicateBookmark}
+                        onMoveBookmark={(b) => setBookmarkToMove(b)}
+                        onDeleteBookmark={handleDeleteBookmark}
+                        dragDropCategory={settings.dragDrop.category}
+                        sortableWrapper={false}
+                        dragDropBookmark={settings.dragDrop.bookmark}
+                        draggedBookmark={draggedBookmark}
+                        dropBookmarkTarget={dropBookmarkTarget}
+                        onBookmarkDragStart={(e, bookmarkId) =>
+                          handleBookmarkDragStart(e, bookmarkId, cat.id)
+                        }
+                        onBookmarkDragOver={(e, bookmarkId, index) =>
+                          handleBookmarkDragOver(e, bookmarkId, cat.id, index)
+                        }
+                        onBookmarkDrop={handleBookmarkDrop}
+                        onBookmarkDragEnd={handleBookmarkDragEnd}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
