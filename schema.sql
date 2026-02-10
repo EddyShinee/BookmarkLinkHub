@@ -70,6 +70,62 @@ CREATE POLICY "Users can delete own boards"
     USING (auth.uid() = user_id);
 
 -- ============================================
+-- BOARD_COLUMNS TABLE (Kanban columns per board)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.board_columns (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    board_id UUID NOT NULL REFERENCES public.boards(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS board_columns_board_id_idx ON public.board_columns(board_id);
+
+ALTER TABLE public.board_columns ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view columns in own boards"
+    ON public.board_columns FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.boards
+            WHERE boards.id = board_columns.board_id
+            AND boards.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can create columns in own boards"
+    ON public.board_columns FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.boards
+            WHERE boards.id = board_id
+            AND boards.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can update columns in own boards"
+    ON public.board_columns FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.boards
+            WHERE boards.id = board_columns.board_id
+            AND boards.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can delete columns in own boards"
+    ON public.board_columns FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.boards
+            WHERE boards.id = board_columns.board_id
+            AND boards.user_id = auth.uid()
+        )
+    );
+
+-- ============================================
 -- CATEGORIES TABLE
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.categories (
@@ -137,6 +193,8 @@ CREATE POLICY "Users can delete categories in own boards"
 CREATE TABLE IF NOT EXISTS public.bookmarks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_id UUID NOT NULL REFERENCES public.categories(id) ON DELETE CASCADE,
+    -- Trello-style: optional card reference (future use)
+    card_id UUID REFERENCES public.cards(id) ON DELETE CASCADE,
     url TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
@@ -273,6 +331,11 @@ CREATE TRIGGER profiles_updated_at
 DROP TRIGGER IF EXISTS boards_updated_at ON public.boards;
 CREATE TRIGGER boards_updated_at
     BEFORE UPDATE ON public.boards
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS board_columns_updated_at ON public.board_columns;
+CREATE TRIGGER board_columns_updated_at
+    BEFORE UPDATE ON public.board_columns
     FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 DROP TRIGGER IF EXISTS categories_updated_at ON public.categories;

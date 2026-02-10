@@ -1551,7 +1551,13 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
               )}
               <div
                 ref={categoryGridRef}
-                className="category-grid"
+                className={`category-grid ${
+                  settings.categoryColumns === 2 ? 'category-grid-cols-2' :
+                  settings.categoryColumns === 3 ? 'category-grid-cols-3' :
+                  settings.categoryColumns === 5 ? 'category-grid-cols-5' :
+                  settings.categoryColumns === 6 ? 'category-grid-cols-6' :
+                  'category-grid-cols-4'
+                }`}
                 onDragOver={handleCategoryDragOverGrid}
                 onDrop={handleCategoryDropGrid}
               >
