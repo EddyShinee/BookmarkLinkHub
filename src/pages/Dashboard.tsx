@@ -8,6 +8,7 @@ import {
   useSensors,
   closestCenter,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -55,6 +56,7 @@ function SortableCategoryCard({
   onDuplicateCategory,
   onDeleteCategory,
   onAddBookmark,
+  onMoveCategory,
   onEditBookmark,
   onDuplicateBookmark,
   onMoveBookmark,
@@ -66,6 +68,7 @@ function SortableCategoryCard({
   onBookmarkDragOver,
   onBookmarkDrop,
   onBookmarkDragEnd,
+  disabled,
 }: {
   category: Category & { bookmarks: Bookmark[] };
   activeCategoryId: string | null;
@@ -80,6 +83,7 @@ function SortableCategoryCard({
   onDuplicateCategory?: () => void;
   onDeleteCategory: () => void;
   onAddBookmark: () => void;
+  onMoveCategory?: () => void;
   onEditBookmark: (b: Bookmark) => void;
   onDuplicateBookmark?: (b: Bookmark) => void;
   onMoveBookmark?: (b: Bookmark) => void;
@@ -91,10 +95,12 @@ function SortableCategoryCard({
   onBookmarkDragOver?: (e: React.DragEvent, bookmarkId: string, index: number) => void;
   onBookmarkDrop?: (e: React.DragEvent) => void;
   onBookmarkDragEnd?: () => void;
+  disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id,
-    transition: { duration: 150, easing: 'ease' },
+    transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+    disabled,
   });
   const isActive = isDragging || activeCategoryId === category.id;
   const style: React.CSSProperties = {
@@ -104,7 +110,7 @@ function SortableCategoryCard({
     pointerEvents: isActive ? 'none' : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} className="break-inside-avoid" {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="break-inside-avoid category-grid-item" {...attributes} {...listeners}>
       <CategoryCard
         category={category}
         fallbackDotColor={fallbackDotColor}
@@ -118,6 +124,7 @@ function SortableCategoryCard({
         onDuplicateCategory={onDuplicateCategory}
         onDeleteCategory={onDeleteCategory}
         onAddBookmark={onAddBookmark}
+        onMoveCategory={onMoveCategory}
         onEditBookmark={onEditBookmark}
         onDuplicateBookmark={onDuplicateBookmark}
         onMoveBookmark={onMoveBookmark}
@@ -168,6 +175,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [categoryEditing, setCategoryEditing] = useState<Category | null>(null);
+  const [categoryMoveMode, setCategoryMoveMode] = useState(false);
   const [categoryMenuId, setCategoryMenuId] = useState<string | null>(null);
 
   const [bookmarkModalOpen, setBookmarkModalOpen] = useState(false);
@@ -197,9 +205,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   // Stable grid order for categories (gridIndex is single source of truth for layout)
   const [categoryGridIndexes, setCategoryGridIndexes] = useState<CategoryGridIndex[]>([]);
-  const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
-  const [draggedCategoryGridIndex, setDraggedCategoryGridIndex] = useState<number | null>(null);
-  const [targetCategoryGridIndex, setTargetCategoryGridIndex] = useState<number | null>(null);
+  const [activeDragCategory, setActiveDragCategory] = useState<Category & { bookmarks: Bookmark[] } | null>(null);
   const categoryGridRef = useRef<HTMLDivElement | null>(null);
 
   // Toast Loading cho các trạng thái loading khác
@@ -229,8 +235,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   useEffect(() => {
     const tLoc = getT(settings.locale);
     if (searchDataLoading) {
-      setToast({ message: tLoc.loadingSearch, type: 'info' });
-    } else if (toast.message === tLoc.loadingSearch) {
+      setToast({ message: tLoc.loadingAuth, type: 'info' });
+    } else if (toast.message === tLoc.loadingAuth) {
       setToast((p) => ({ ...p, message: '' }));
     }
   }, [searchDataLoading, settings.locale, toast.message]);
@@ -503,11 +509,6 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     }
   }, [selectedBoardId]);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', settings.theme === 'dark');
-    document.documentElement.classList.toggle('light', settings.theme === 'light');
-  }, [settings.theme]);
-
   const focusSearch = useCallback(() => {
     if (spotlightOpen) return;
     if (searchInputRef.current) {
@@ -553,130 +554,35 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     [selectedBoardId]
   );
 
-  const computeCategoryTargetIndexFromMouse = (clientX: number, clientY: number): number | null => {
-    const container = categoryGridRef.current;
-    if (!container || sortedCategoriesForGrid.length === 0) return null;
+  const categoryGridSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
-    // 1) Ưu tiên card nào đang nằm trực tiếp dưới con trỏ (hit-test theo rect).
-    // 2) Nếu không có card nào dưới con trỏ, mới fallback sang card có tâm gần nhất.
-    // Lưu ý: vẫn chỉ dùng gridIndex làm nguồn sắp xếp, DOM position chỉ để chọn ô đích.
-    const cards = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-category-id]')
-    );
-    if (cards.length === 0) return null;
-
-    // Hit test: card chứa điểm (clientX, clientY)
-    for (const el of cards) {
-      const rect = el.getBoundingClientRect();
-      if (
-        clientX >= rect.left &&
-        clientX <= rect.right &&
-        clientY >= rect.top &&
-        clientY <= rect.bottom
-      ) {
-        const insideId = el.dataset.categoryId ?? null;
-        if (insideId) {
-          const metaInside = categoryGridIndexes.find((item) => item.id === insideId);
-          if (metaInside) return metaInside.gridIndex;
-        }
-      }
-    }
-
-    // Fallback: card có tâm gần nhất
-    let closestId: string | null = null;
-    let closestDist = Infinity;
-
-    for (const el of cards) {
-      const rect = el.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = clientX - cx;
-      const dy = clientY - cy;
-      const distSq = dx * dx + dy * dy;
-      if (distSq < closestDist) {
-        closestDist = distSq;
-        closestId = el.dataset.categoryId ?? null;
-      }
-    }
-
-    if (!closestId) return null;
-
-    const meta = categoryGridIndexes.find((item) => item.id === closestId);
-    if (!meta) return null;
-
-    return meta.gridIndex;
-  };
-
-  const handleCategoryDragStartGrid = (e: React.DragEvent<HTMLDivElement>, id: string) => {
-    const meta = categoryGridIndexes.find((item) => item.id === id);
-    if (!meta) return;
-    setDraggedCategoryId(id);
-    setDraggedCategoryGridIndex(meta.gridIndex);
-    setTargetCategoryGridIndex(meta.gridIndex);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id);
-  };
-
-  const handleCategoryDragOverGrid = (e: React.DragEvent<HTMLDivElement>) => {
-    if (draggedCategoryId == null) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const index = computeCategoryTargetIndexFromMouse(e.clientX, e.clientY);
-    if (index == null) return;
-    setTargetCategoryGridIndex(index);
-  };
-
-  const handleCategoryDropGrid = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (
-      draggedCategoryId == null ||
-      draggedCategoryGridIndex == null ||
-      targetCategoryGridIndex == null
-    ) {
-      setDraggedCategoryId(null);
-      setDraggedCategoryGridIndex(null);
-      setTargetCategoryGridIndex(null);
-      return;
-    }
-
-    if (draggedCategoryGridIndex === targetCategoryGridIndex) {
-      setDraggedCategoryId(null);
-      setDraggedCategoryGridIndex(null);
-      setTargetCategoryGridIndex(null);
-      return;
-    }
-
-    setCategoryGridIndexes((prev) => {
-      const dragged = prev.find((item) => item.id === draggedCategoryId);
-      const target = prev.find((item) => item.gridIndex === targetCategoryGridIndex);
-      if (!dragged || !target) return prev;
-
-      // Swap ONLY gridIndex values, keep DOM/array order independent
-      const updated = prev.map((item) => {
-        if (item.id === dragged.id) {
-          return { ...item, gridIndex: target.gridIndex };
-        }
-        if (item.id === target.id) {
-          return { ...item, gridIndex: dragged.gridIndex };
-        }
-        return item;
+  const handleCategoryDragEndDnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const fromIndex = sortedCategoriesForGrid.findIndex((x) => x.category.id === active.id);
+      const toIndex = sortedCategoriesForGrid.findIndex((x) => x.category.id === over.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const reordered = arrayMove(
+        sortedCategoriesForGrid.map((x) => x.category.id),
+        fromIndex,
+        toIndex
+      );
+      setCategoryGridIndexes((prev) => {
+        const indexById = new Map(prev.map((item) => [item.id, item]));
+        const updated = reordered.map((id, idx) => {
+          const existing = indexById.get(id);
+          return existing ? { ...existing, gridIndex: idx } : { id, gridIndex: idx };
+        });
+        const normalized = normalizeCategoryGridIndexes(updated);
+        saveCategoryGridToStorage(normalized);
+        return normalized;
       });
-
-      const normalized = normalizeCategoryGridIndexes(updated);
-      saveCategoryGridToStorage(normalized);
-      return normalized;
-    });
-
-    setDraggedCategoryId(null);
-    setDraggedCategoryGridIndex(null);
-    setTargetCategoryGridIndex(null);
-  };
-
-  const handleCategoryDragEndGrid = () => {
-    setDraggedCategoryId(null);
-    setDraggedCategoryGridIndex(null);
-    setTargetCategoryGridIndex(null);
-  };
+    },
+    [sortedCategoriesForGrid, normalizeCategoryGridIndexes, saveCategoryGridToStorage]
+  );
 
   const handleSignOut = () => supabase.auth.signOut();
 
@@ -1233,7 +1139,9 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           <button
             type="button"
             onClick={() => setAuthenticatorModalOpen(true)}
-            className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary hover:bg-white/5 hover:text-white border border-transparent transition"
+            className={`flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary border border-transparent transition ${
+              settings.theme === 'light' ? 'sidebar-item-hover hover:text-text-primary' : 'hover:bg-white/5 hover:text-white'
+            }`}
           >
             <span className="material-symbols-outlined text-[18px] text-accent">shield</span>
             <span>{getT(settings.locale).authenticator}</span>
@@ -1241,7 +1149,9 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           <button
             type="button"
             onClick={() => setItToolboxModalOpen(true)}
-            className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary hover:bg-white/5 hover:text-white border border-transparent transition"
+            className={`flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary border border-transparent transition ${
+              settings.theme === 'light' ? 'sidebar-item-hover hover:text-text-primary' : 'hover:bg-white/5 hover:text-white'
+            }`}
           >
             <span className="material-symbols-outlined text-[18px] text-accent">build</span>
             <span>IT Tool box</span>
@@ -1252,7 +1162,9 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           <button
             type="button"
             onClick={() => { setBoardEditing(null); setBoardModalOpen(true); }}
-            className="p-1 rounded-lg text-text-muted hover:text-accent hover:bg-white/5 transition"
+            className={`p-1 rounded-lg text-text-muted transition ${
+              settings.theme === 'light' ? 'sidebar-item-hover hover:text-accent' : 'hover:text-accent hover:bg-white/5'
+            }`}
             aria-label="Add board"
           >
             <span className="material-icons-round text-base">add_circle_outline</span>
@@ -1282,13 +1194,19 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
                   selectedBoardId === board.id
                     ? 'bg-accent/15 text-accent border border-accent/25 shadow-[0_0_12px_rgba(129,140,248,0.12)]'
                     : 'text-text-secondary hover:bg-white/5 hover:text-white border border-transparent'
+                } ${
+                  settings.theme === 'light'
+                    ? selectedBoardId === board.id
+                      ? '!bg-transparent !border-transparent !shadow-none border-l-2 border-l-accent'
+                      : 'sidebar-item-hover hover:text-text-primary'
+                    : ''
                 }`}
               >
                 <span className="truncate">{board.name}</span>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setBoardMenuId((id) => (id === board.id ? null : board.id)); }}
-                  className="p-1 rounded hover:bg-white/10 flex-shrink-0"
+                  className={`p-1 rounded flex-shrink-0 ${settings.theme === 'light' ? 'sidebar-item-hover' : 'hover:bg-white/10'}`}
                   aria-label="Menu"
                 >
                   <span className="material-icons-round text-[14px] opacity-60">more_horiz</span>
@@ -1348,11 +1266,14 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
         <div
           className="absolute inset-0 backdrop-blur-[2px] z-0"
           style={{
-            backgroundColor: `${settings.backgroundColor}${
-              Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
-                .toString(16)
-                .padStart(2, '0')
-            }`,
+            backgroundColor:
+              settings.theme === 'light'
+                ? `rgba(240, 240, 240, ${(settings.backgroundOverlayOpacity ?? 90) / 100})`
+                : `${settings.backgroundColor}${
+                    Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
+                      .toString(16)
+                      .padStart(2, '0')
+                  }`,
           }}
         />
         <header className="h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b border-white/10 bg-main/80 backdrop-blur-md">
@@ -1450,7 +1371,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-6 z-10">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
           {boardsError && (
             <p className="text-red-400 text-xs py-3">{boardsError.message}</p>
           )}
@@ -1549,95 +1470,139 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
                   <p>Chưa có category. Tạo category hoặc thêm bookmark.</p>
                 </div>
               )}
-              <div
-                ref={categoryGridRef}
-                className={`category-grid ${
-                  settings.categoryColumns === 2 ? 'category-grid-cols-2' :
-                  settings.categoryColumns === 3 ? 'category-grid-cols-3' :
-                  settings.categoryColumns === 5 ? 'category-grid-cols-5' :
-                  settings.categoryColumns === 6 ? 'category-grid-cols-6' :
-                  'category-grid-cols-4'
-                }`}
-                onDragOver={handleCategoryDragOverGrid}
-                onDrop={handleCategoryDropGrid}
+              <DndContext
+                sensors={categoryGridSensors}
+                collisionDetection={closestCenter}
+                onDragStart={(e: DragStartEvent) => {
+                  const cat = categories.find((c) => c.id === e.active.id);
+                  if (cat) setActiveDragCategory(cat as Category & { bookmarks: Bookmark[] });
+                }}
+                onDragEnd={(e) => {
+                  handleCategoryDragEndDnd(e);
+                  setActiveDragCategory(null);
+                }}
               >
-                {sortedCategoriesForGrid.map(({ category: cat, gridIndex }) => {
-                  const idx = FALLBACK_DOT_COLORS.length
-                    ? gridIndex % FALLBACK_DOT_COLORS.length
-                    : 0;
-                  const isDragged = draggedCategoryId === cat.id;
-                  const isTarget =
-                    draggedCategoryId != null &&
-                    targetCategoryGridIndex != null &&
-                    gridIndex === targetCategoryGridIndex;
-
-                  return (
-                    <div
-                      key={cat.id}
-                      data-category-id={cat.id}
-                      className={`category-grid-item ${
-                        isDragged ? 'category-grid-item--dragged' : ''
-                      } ${isTarget ? 'category-grid-item--target' : ''}`}
-                      draggable={settings.dragDrop.category}
-                      onDragStart={(e) =>
-                        settings.dragDrop.category && handleCategoryDragStartGrid(e, cat.id)
-                      }
-                      onDragEnd={handleCategoryDragEndGrid}
-                    >
+                <SortableContext
+                  items={sortedCategoriesForGrid.map((x) => x.category.id)}
+                  strategy={rectSortingStrategy}
+                  disabled={!settings.dragDrop.category}
+                >
+                  <div
+                    ref={categoryGridRef}
+                    className={`category-grid ${
+                      settings.categoryColumns === 2 ? 'category-grid-cols-2' :
+                      settings.categoryColumns === 3 ? 'category-grid-cols-3' :
+                      settings.categoryColumns === 5 ? 'category-grid-cols-5' :
+                      settings.categoryColumns === 6 ? 'category-grid-cols-6' :
+                      'category-grid-cols-4'
+                    }`}
+                  >
+                    {sortedCategoriesForGrid.map(({ category: cat, gridIndex }) => {
+                      const idx = FALLBACK_DOT_COLORS.length
+                        ? gridIndex % FALLBACK_DOT_COLORS.length
+                        : 0;
+                      return (
+                        <SortableCategoryCard
+                          key={cat.id}
+                          category={cat}
+                          activeCategoryId={null}
+                          fallbackDotColor={FALLBACK_DOT_COLORS[idx]}
+                          searchQuery={searchQuery}
+                          onOpenBookmark={openBookmark}
+                          cardHeight={settings.categoryCardHeight}
+                          fillContent={settings.categoryColorFillContent}
+                          categoryMenuId={categoryMenuId}
+                          onOpenCategoryMenu={(id) =>
+                            setCategoryMenuId((cur) => (cur === id ? null : id))
+                          }
+                          onEditCategory={() => {
+                            setCategoryEditing(cat);
+                            setCategoryMoveMode(false);
+                            setCategoryModalOpen(true);
+                            setCategoryMenuId(null);
+                          }}
+                          onMoveCategory={
+                            boards.filter((b) => b.id !== cat.board_id).length > 0
+                              ? () => {
+                                  setCategoryEditing(cat);
+                                  setCategoryMoveMode(true);
+                                  setCategoryModalOpen(true);
+                                  setCategoryMenuId(null);
+                                }
+                              : undefined
+                          }
+                          onDuplicateCategory={() => {
+                            handleDuplicateCategory(cat);
+                            setCategoryMenuId(null);
+                          }}
+                          onDeleteCategory={() => {
+                            handleDeleteCategory(cat);
+                            setCategoryMenuId(null);
+                          }}
+                          onAddBookmark={() => {
+                            openAddBookmark(cat.id);
+                            setCategoryMenuId(null);
+                          }}
+                          onEditBookmark={(b) => {
+                            setBookmarkEditing(b);
+                            setBookmarkModalOpen(true);
+                            setCategoryMenuId(null);
+                          }}
+                          onDuplicateBookmark={handleDuplicateBookmark}
+                          onMoveBookmark={(b) => setBookmarkToMove(b)}
+                          onDeleteBookmark={handleDeleteBookmark}
+                          dragDropBookmark={settings.dragDrop.bookmark}
+                          draggedBookmark={draggedBookmark}
+                          dropBookmarkTarget={dropBookmarkTarget}
+                          onBookmarkDragStart={(e, bookmarkId) =>
+                            handleBookmarkDragStart(e, bookmarkId, cat.id)
+                          }
+                          onBookmarkDragOver={(e, bookmarkId, index) =>
+                            handleBookmarkDragOver(e, bookmarkId, cat.id, index)
+                          }
+                          onBookmarkDrop={handleBookmarkDrop}
+                          onBookmarkDragEnd={handleBookmarkDragEnd}
+                          disabled={!settings.dragDrop.category}
+                        />
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+                <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
+                  {activeDragCategory ? (
+                    <div className="category-grid-item opacity-90 shadow-xl">
                       <CategoryCard
-                        category={cat}
-                        fallbackDotColor={FALLBACK_DOT_COLORS[idx]}
+                        category={activeDragCategory}
+                        fallbackDotColor={FALLBACK_DOT_COLORS[
+                          (sortedCategoriesForGrid.find((x) => x.category.id === activeDragCategory.id)?.gridIndex ?? 0) % FALLBACK_DOT_COLORS.length
+                        ]}
                         searchQuery={searchQuery}
                         onOpenBookmark={openBookmark}
                         cardHeight={settings.categoryCardHeight}
                         fillContent={settings.categoryColorFillContent}
-                        categoryMenuId={categoryMenuId}
-                        onOpenCategoryMenu={(id) =>
-                          setCategoryMenuId((cur) => (cur === id ? null : id))
-                        }
-                        onEditCategory={() => {
-                          setCategoryEditing(cat);
-                          setCategoryModalOpen(true);
-                          setCategoryMenuId(null);
-                        }}
-                        onDuplicateCategory={() => {
-                          handleDuplicateCategory(cat);
-                          setCategoryMenuId(null);
-                        }}
-                        onDeleteCategory={() => {
-                          handleDeleteCategory(cat);
-                          setCategoryMenuId(null);
-                        }}
-                        onAddBookmark={() => {
-                          openAddBookmark(cat.id);
-                          setCategoryMenuId(null);
-                        }}
-                        onEditBookmark={(b) => {
-                          setBookmarkEditing(b);
-                          setBookmarkModalOpen(true);
-                          setCategoryMenuId(null);
-                        }}
-                        onDuplicateBookmark={handleDuplicateBookmark}
-                        onMoveBookmark={(b) => setBookmarkToMove(b)}
-                        onDeleteBookmark={handleDeleteBookmark}
-                        dragDropCategory={settings.dragDrop.category}
+                        categoryMenuId={null}
+                        onOpenCategoryMenu={() => {}}
+                        onEditCategory={() => {}}
+                        onDeleteCategory={() => {}}
+                        onAddBookmark={() => {}}
+                        onEditBookmark={() => {}}
+                        onDuplicateBookmark={() => {}}
+                        onMoveBookmark={() => {}}
+                        onDeleteBookmark={() => {}}
+                        dragDropCategory={false}
                         sortableWrapper={false}
-                        dragDropBookmark={settings.dragDrop.bookmark}
-                        draggedBookmark={draggedBookmark}
-                        dropBookmarkTarget={dropBookmarkTarget}
-                        onBookmarkDragStart={(e, bookmarkId) =>
-                          handleBookmarkDragStart(e, bookmarkId, cat.id)
-                        }
-                        onBookmarkDragOver={(e, bookmarkId, index) =>
-                          handleBookmarkDragOver(e, bookmarkId, cat.id, index)
-                        }
-                        onBookmarkDrop={handleBookmarkDrop}
-                        onBookmarkDragEnd={handleBookmarkDragEnd}
+                        dragDropBookmark={false}
+                        draggedBookmark={null}
+                        dropBookmarkTarget={null}
+                        onBookmarkDragStart={() => {}}
+                        onBookmarkDragOver={() => {}}
+                        onBookmarkDrop={() => {}}
+                        onBookmarkDragEnd={() => {}}
                       />
                     </div>
-                  );
-                })}
-              </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </>
           )}
         </div>
@@ -1679,9 +1644,10 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
             : null
         }
         boards={boards}
-        onClose={() => { setCategoryModalOpen(false); setCategoryEditing(null); }}
+        onClose={() => { setCategoryModalOpen(false); setCategoryEditing(null); setCategoryMoveMode(false); }}
         onSave={handleSaveCategory}
         onMoveToBoard={handleMoveCategoryToBoard}
+        initialOpenMoveModal={categoryMoveMode}
       />
 
       <BookmarkModal
@@ -1760,13 +1726,18 @@ function MoveBookmarkModal({
   onClose: () => void;
   onMove: (categoryId: string) => void;
 }) {
+  const settings = useSettings();
+  const t = getT(settings.locale);
   const [allCategories, setAllCategories] = useState<{ id: string; name: string; board_id: string; sort_order: number }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const boardIds = boards.map((b) => b.id).join(',');
 
   useEffect(() => {
     if (!open || !bookmark || boards.length === 0) {
       setAllCategories([]);
+      setSearchQuery('');
       return;
     }
     let cancelled = false;
@@ -1784,6 +1755,13 @@ function MoveBookmarkModal({
     return () => { cancelled = true; };
   }, [open, bookmark?.id, boardIds]);
 
+  useEffect(() => {
+    if (open) {
+      const id = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(id);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   const boardOrder = [...boards].sort((a, b) => a.sort_order - b.sort_order);
@@ -1792,60 +1770,99 @@ function MoveBookmarkModal({
     categories: allCategories.filter((c) => c.board_id === board.id).sort((a, b) => a.sort_order - b.sort_order),
   }));
 
+  const q = searchQuery.trim().toLowerCase();
+  const filtered =
+    q === ''
+      ? categoriesByBoard
+      : categoriesByBoard
+          .map(({ board, categories }) => {
+            const boardMatches = board.name.toLowerCase().includes(q);
+            const categoriesFiltered = boardMatches
+              ? categories
+              : categories.filter((c) => c.name.toLowerCase().includes(q));
+            return { board, categories: categoriesFiltered };
+          })
+          .filter((x) => x.categories.length > 0 || x.board.name.toLowerCase().includes(q));
+
+  const hasResults = filtered.length > 0;
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-sidebar border border-white/10 rounded-xl shadow-xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden"
+        className="bg-sidebar border border-white/10 rounded-xl shadow-xl w-full max-w-[420px] max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-base font-semibold text-white px-4 py-3 border-b border-white/10">
-          Di chuyển bookmark
-        </h3>
-        {bookmark && (
-          <p className="px-4 py-1.5 text-xs text-text-muted truncate border-b border-white/5">
-            {bookmark.title || bookmark.url}
-          </p>
-        )}
-        <div className="overflow-y-auto flex-1 p-2 min-h-0">
-          {loading ? (
-            <p className="text-xs text-text-muted py-4 text-center">Đang tải...</p>
-          ) : (
-            categoriesByBoard.map(({ board, categories: cats }) => (
-              <div key={board.id} className="mb-3">
-                <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider px-2 py-1">
-                  {board.name}
-                </p>
-                <div className="space-y-0.5">
-                  {cats.map((cat) => {
-                    const isCurrent = bookmark?.category_id === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        disabled={isCurrent}
-                        onClick={() => { onMove(cat.id); onClose(); }}
-                        className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-xs transition ${
-                          isCurrent
-                            ? 'opacity-50 cursor-not-allowed bg-white/5 text-text-muted'
-                            : 'text-text-secondary hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        <span className="font-medium truncate">{cat.name}</span>
-                        {isCurrent && <span className="text-[11px] text-text-muted flex-shrink-0">(hiện tại)</span>}
-                      </button>
-                    );
-                  })}
-                  {cats.length === 0 && (
-                    <p className="px-3 py-1.5 text-xs text-text-muted">Chưa có category</p>
-                  )}
-                </div>
-              </div>
-            ))
+        <div className="flex-shrink-0 px-3 pt-2.5 pb-2 border-b border-white/10">
+          <h3 className="text-sm font-semibold text-white mb-0.5">
+            {t.moveBookmarkModalTitle}
+          </h3>
+          {bookmark && (
+            <p className="text-[11px] text-text-muted truncate mb-2">
+              {bookmark.title || bookmark.url}
+            </p>
           )}
+          <div className="relative">
+            <span className="material-icons-round absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[13px] pointer-events-none">
+              search
+            </span>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.moveBookmarkSearchPlaceholder}
+              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder:text-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+            />
+          </div>
         </div>
-        <div className="p-2 border-t border-white/10">
-          <button type="button" onClick={onClose} className="w-full px-3 py-2 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
-            Hủy
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="p-2 pb-2.5">
+            {loading ? (
+              <p className="text-[11px] text-text-muted py-4 text-center">{t.loadingAuth}</p>
+            ) : !hasResults ? (
+              <p className="text-[11px] text-text-muted py-4 text-center">{t.moveBookmarkNoResults}</p>
+            ) : (
+              filtered.map(({ board, categories: cats }) => (
+                <div key={board.id} className="mb-1.5 last:mb-0 rounded-lg border border-white/10 bg-white/5 p-1.5">
+                  <p className="text-sm font-bold text-white tracking-wide px-2 py-1.5 mb-1">
+                    {board.name}
+                  </p>
+                  <div className="space-y-0.5">
+                    {cats.length === 0 && (
+                      <p className="px-2 py-1.5 text-[11px] text-text-muted">{t.moveBookmarkNoCategory}</p>
+                    )}
+                    {cats.map((cat) => {
+                      const isCurrent = bookmark?.category_id === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          disabled={isCurrent}
+                          onClick={() => { onMove(cat.id); onClose(); }}
+                          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs transition ${
+                            isCurrent
+                              ? 'cursor-not-allowed bg-white/5 text-text-muted border border-white/10'
+                              : 'text-text-secondary hover:bg-white/10 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          <span className="font-medium truncate flex-1 min-w-0 text-sm">{cat.name}</span>
+                          {isCurrent && (
+                            <span className="text-[10px] text-text-muted flex-shrink-0 px-1.5 py-0.5 rounded bg-white/5">
+                              {t.moveBookmarkCurrent}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="flex-shrink-0 p-2 border-t border-white/10">
+          <button type="button" onClick={onClose} className="w-full px-3 py-1.5 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
+            {t.cancel}
           </button>
         </div>
       </div>
@@ -1866,6 +1883,7 @@ function CategoryCard({
   onDuplicateCategory,
   onDeleteCategory,
   onAddBookmark,
+  onMoveCategory,
   onEditBookmark,
   onDuplicateBookmark,
   onMoveBookmark,
@@ -1892,6 +1910,7 @@ function CategoryCard({
   onDuplicateCategory?: () => void;
   onDeleteCategory: () => void;
   onAddBookmark: () => void;
+  onMoveCategory?: () => void;
   onEditBookmark: (b: Bookmark) => void;
   onDuplicateBookmark?: (b: Bookmark) => void;
   onMoveBookmark?: (b: Bookmark) => void;
@@ -1921,38 +1940,23 @@ function CategoryCard({
   const menuOpen = categoryMenuId === id;
   const categoryTriggerRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const [openCategoryMenuAbove, setOpenCategoryMenuAbove] = useState(false);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const run = () => {
-      const t = categoryTriggerRef.current;
-      const d = categoryDropdownRef.current;
-      if (!t || !d) return;
-      const tr = t.getBoundingClientRect();
-      const dr = d.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - tr.bottom;
-      const hasRoomAbove = tr.top > dr.height;
-      const notEnoughBelow = spaceBelow < dr.height;
-      const fewBookmarks = filtered.length <= 2;
-      // Ưu tiên mở lên trên khi category thấp (ít bookmark) và có chỗ phía trên,
-      // hoặc khi bên dưới không đủ chỗ nhưng phía trên đủ.
-      setOpenCategoryMenuAbove(
-        (fewBookmarks && hasRoomAbove) || (notEnoughBelow && hasRoomAbove)
-      );
-    };
-    const rafId = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(rafId);
+  const [categoryMenuPosition, setCategoryMenuPosition] = useState({ top: 0, left: 0 });
+  useLayoutEffect(() => {
+    if (!menuOpen || !categoryTriggerRef.current) return;
+    const tr = categoryTriggerRef.current.getBoundingClientRect();
+    const estHeight = 170;
+    const spaceBelow = window.innerHeight - tr.bottom;
+    const top = spaceBelow < estHeight ? tr.top - estHeight - 4 : tr.bottom + 4;
+    setCategoryMenuPosition({ top, left: tr.right - 180 });
   }, [menuOpen]);
   return (
-    <div
-      data-category-menu
-      className={`relative glass-panel rounded-xl ${
-        menuOpen && openCategoryMenuAbove ? 'overflow-visible' : 'overflow-hidden'
-      } shadow-glass group hover:border-white/10 transition-all duration-200 ${
-        cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
-      } ${(dragDropCategory || sortableWrapper) ? 'cursor-grab active:cursor-grabbing' : ''} ${
-        isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
-      } ${menuOpen ? 'z-[999]' : ''}`}
+<div
+        data-category-menu
+        className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group hover:border-white/10 transition-all duration-200 min-w-0 ${
+          cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
+        } ${(dragDropCategory || sortableWrapper) ? 'cursor-grab active:cursor-grabbing' : ''} ${
+          isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
+        } ${menuOpen ? 'z-[999]' : ''}`}
       style={
         color && fillContent
           ? {
@@ -1966,16 +1970,16 @@ function CategoryCard({
         className="px-2.5 py-0 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"
         style={color ? { backgroundColor: color } : undefined}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {icon ? (
-            <span className="material-symbols-outlined text-[16px] text-white">{icon}</span>
+            <span className="material-symbols-outlined text-[16px] text-white flex-shrink-0">{icon}</span>
           ) : (
             <div
               className="h-1.5 w-1.5 rounded-full flex-shrink-0"
               style={{ backgroundColor: dotColor, boxShadow: `0 0 6px ${dotColor}80` }}
             />
           )}
-          <h3 className="font-bold text-xs text-white tracking-wide">{name}</h3>
+          <h3 className="font-bold text-xs text-white tracking-wide truncate">{name}</h3>
         </div>
         <div ref={categoryTriggerRef} className="relative">
           <button
@@ -1986,31 +1990,45 @@ function CategoryCard({
           >
             <span className="material-icons-round text-base">more_horiz</span>
           </button>
-          {menuOpen && (
-            <div
-              ref={categoryDropdownRef}
-              className={`absolute right-0 rounded-lg border border-white/10 bg-sidebar shadow-xl py-1 z-[999] min-w-[180px] whitespace-nowrap ${openCategoryMenuAbove ? 'bottom-full mb-0.5' : 'top-full mt-0.5'}`}
-            >
-              <button type="button" onClick={onEditCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                <span className="material-icons-round text-[16px]">edit</span>
-                {getT(settings.locale).edit}
-              </button>
-              <button type="button" onClick={onAddBookmark} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                <span className="material-icons-round text-[16px]">link</span>
-                {getT(settings.locale).addBookmark}
-              </button>
-              {onDuplicateCategory && (
-                <button type="button" onClick={onDuplicateCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                  <span className="material-icons-round text-[16px]">content_copy</span>
-                  {getT(settings.locale).duplicate}
+          {menuOpen &&
+            createPortal(
+              <div
+                ref={categoryDropdownRef}
+                className="rounded-lg border border-white/10 bg-sidebar shadow-xl py-1 min-w-[180px] whitespace-nowrap"
+                style={{
+                  position: 'fixed',
+                  top: categoryMenuPosition.top,
+                  left: categoryMenuPosition.left,
+                  zIndex: 9999,
+                }}
+              >
+                <button type="button" onClick={onEditCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
+                  <span className="material-icons-round text-[16px]">edit</span>
+                  {getT(settings.locale).edit}
                 </button>
-              )}
-              <button type="button" onClick={onDeleteCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20">
-                <span className="material-icons-round text-[16px]">delete</span>
-                {getT(settings.locale).delete}
-              </button>
-            </div>
-          )}
+                <button type="button" onClick={onAddBookmark} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
+                  <span className="material-icons-round text-[16px]">link</span>
+                  {getT(settings.locale).addBookmark}
+                </button>
+                {onMoveCategory && (
+                  <button type="button" onClick={onMoveCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
+                    <span className="material-icons-round text-[16px]">drive_file_move</span>
+                    {getT(settings.locale).moveCategory}
+                  </button>
+                )}
+                {onDuplicateCategory && (
+                  <button type="button" onClick={onDuplicateCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
+                    <span className="material-icons-round text-[16px]">content_copy</span>
+                    {getT(settings.locale).duplicate}
+                  </button>
+                )}
+                <button type="button" onClick={onDeleteCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20">
+                  <span className="material-icons-round text-[16px]">delete</span>
+                  {getT(settings.locale).delete}
+                </button>
+              </div>,
+              document.body
+            )}
         </div>
       </div>
       <ul className={`py-1.5 px-1 ${cardHeight === 'equal' ? 'flex-1 flex flex-col' : ''}`}>
@@ -2075,6 +2093,7 @@ function BookmarkRow({
   onDrop?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
 }) {
+  const settings = useSettings();
   const [menuOpen, setMenuOpen] = useState(false);
   const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -2129,12 +2148,12 @@ function BookmarkRow({
     >
       <button type="button" onClick={() => { onEdit(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
         <span className="material-icons-round text-[16px]">edit</span>
-        {getT(useSettings().locale).edit}
+        {getT(settings.locale).edit}
       </button>
       {onDuplicate && (
         <button type="button" onClick={() => { onDuplicate(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
           <span className="material-icons-round text-[16px]">content_copy</span>
-          {getT(useSettings().locale).duplicate}
+          {getT(settings.locale).duplicate}
         </button>
       )}
       {onMove && (
@@ -2145,7 +2164,7 @@ function BookmarkRow({
       )}
       <button type="button" onClick={() => { onDelete(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20">
         <span className="material-icons-round text-[16px]">delete</span>
-        {getT(useSettings().locale).delete}
+        {getT(settings.locale).delete}
       </button>
     </div>
   );
@@ -2167,9 +2186,15 @@ function BookmarkRow({
         <button
           type="button"
           onClick={() => onOpen(bookmark.url)}
-          className="flex items-center gap-2 px-3 py-2 mx-0.5 rounded-lg hover:bg-white/10 transition-all duration-200 w-full text-left flex-1 min-w-0"
+          className={`flex items-center gap-2 px-3 py-2 mx-0.5 rounded-lg transition-all duration-200 w-full text-left flex-1 min-w-0 ${
+            settings.theme === 'light' ? 'hover:bg-transparent' : 'hover:bg-white/10'
+          }`}
         >
-          <div className="w-5 h-5 rounded flex items-center justify-center bg-slate-800 text-text-secondary text-[11px] font-bold border border-white/5 group-hover/item:border-accent/30 group-hover/item:text-accent transition-colors flex-shrink-0">
+          <div className={`w-5 h-5 rounded flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-colors ${
+            settings.theme === 'light'
+              ? 'bg-transparent text-text-secondary border border-black/10 group-hover/item:border-accent/50 group-hover/item:text-accent'
+              : 'bg-slate-800 text-text-secondary border border-white/5 group-hover/item:border-accent/30 group-hover/item:text-accent'
+          }`}>
             {index + 1}
           </div>
           <span className="text-xs font-medium text-text-secondary group-hover/item:text-white transition-colors truncate">

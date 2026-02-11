@@ -29,12 +29,12 @@ export default function Toast({ message, type, open, onClose, duration = 4000 }:
           ? 'rgba(16, 185, 129, 0.95)'
           : isError
           ? 'rgba(239, 68, 68, 0.95)'
-          : 'rgba(37, 99, 235, 0.95)',
+          : 'rgba(129, 140, 248, 0.95)',
         borderColor: isSuccess
           ? 'rgba(16, 185, 129, 0.6)'
           : isError
           ? 'rgba(239, 68, 68, 0.6)'
-          : 'rgba(37, 99, 235, 0.6)',
+          : 'rgba(129, 140, 248, 0.6)',
       }}
       role="status"
       aria-live="polite"

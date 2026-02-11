@@ -102,6 +102,13 @@ export const t = {
     cantScanEnterManually: 'Không quét được? Nhập Secret Key thủ công',
     searchAccounts: 'Tìm tài khoản...',
     copied: 'Đã copy',
+    moveBookmarkModalTitle: 'Di chuyển bookmark',
+    moveBookmarkSearchPlaceholder: 'Tìm board hoặc category...',
+    moveBookmarkCurrent: '(hiện tại)',
+    moveBookmarkNoCategory: 'Chưa có category',
+    moveBookmarkNoResults: 'Không tìm thấy',
+    moveToBoardModalTitle: 'Di chuyển sang board',
+    moveToBoardSearchPlaceholder: 'Tìm board...',
   },
   en: {
     settings: 'Settings',
@@ -204,6 +211,13 @@ export const t = {
     cantScanEnterManually: "Can't scan? Enter Secret Key manually",
     searchAccounts: 'Search accounts...',
     copied: 'Copied',
+    moveBookmarkModalTitle: 'Move bookmark',
+    moveBookmarkSearchPlaceholder: 'Search board or category...',
+    moveBookmarkCurrent: '(current)',
+    moveBookmarkNoCategory: 'No category',
+    moveBookmarkNoResults: 'No results found',
+    moveToBoardModalTitle: 'Move to board',
+    moveToBoardSearchPlaceholder: 'Search board...',
   },
 } as const;
 

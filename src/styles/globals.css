@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme variables - dark (default) */
+:root {
+  --color-main: #0F172A;
+  --color-sidebar: #1E293B;
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-overlay: rgba(255, 255, 255, 0.05);
+  --color-overlay-hover: rgba(255, 255, 255, 0.1);
+}
+
+/* Theme variables - light mode (unified neutral palette) */
+html.light {
+  --color-main: #f0f0f0;
+  --color-sidebar: #f0f0f0;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #525252;
+  --color-text-muted: #737373;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-overlay: rgba(0, 0, 0, 0.02);
+  --color-overlay-hover: rgba(0, 0, 0, 0.06);
+}
+
 body {
   margin: 0;
   font-family: Inter, system-ui, sans-serif;
@@ -23,6 +47,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}
 
 .glass-panel {
   background: rgba(30, 41, 59, 0.7);
@@ -30,18 +60,114 @@ body {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
+html.light .glass-panel {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
 .sidebar-gradient {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 1) 100%);
 }
-
-/* Stable, dense masonry-style layout for Dashboard categories */
-.category-grid {
-  column-count: 1;
-  column-gap: 16px;
+html.light .sidebar-gradient {
+  background: #f0f0f0;
+}
+/* Sidebar items: darker hover in light mode */
+html.light .sidebar-item-hover:hover {
+  background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Số cột trên desktop được điều khiển bằng settings.categoryColumns
-   thông qua các class: category-grid-cols-2|3|4|5|6 */
+/* Light mode: override white/black opacity utilities for borders and backgrounds */
+html.light [class*="border-white"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light [class*="border-white/5"] {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+html.light [class*="border-white/10"] {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light [class*="border-white/15"] {
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+html.light .ring-white\/10 {
+  --tw-ring-color: rgba(0, 0, 0, 0.1);
+}
+html.light [class*="bg-white/5"],
+html.light [class*="bg-white\/5"] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+html.light [class*="bg-white/10"],
+html.light [class*="bg-white\/10"] {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+html.light [class*="bg-white/15"],
+html.light [class*="bg-white\/15"] {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+}
+html.light [class*="bg-white/20"],
+html.light [class*="bg-white\/20"] {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+}
+html.light [class*="bg-white/5"] {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+/* Card header / subtle areas: light grey instead of dark tint */
+html.light [class*="bg-white/["] {
+  background-color: #fafafa !important;
+}
+html.light [class*="hover:bg-white/5"]:hover,
+html.light [class*="hover:bg-white\/5"]:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+html.light [class*="hover:bg-white/10"]:hover,
+html.light [class*="hover:bg-white\/10"]:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+html.light [class*="hover:bg-white/15"]:hover,
+html.light [class*="hover:bg-white\/15"]:hover {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+}
+html.light [class*="text-white"]:not([class*="text-white/"]) {
+  color: #0f172a !important;
+}
+html.light [class*="text-white/80"] {
+  color: rgba(15, 23, 42, 0.8) !important;
+}
+html.light [class*="text-white/90"] {
+  color: rgba(15, 23, 42, 0.9) !important;
+}
+html.light .shadow-black\/40 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.15);
+}
+html.light .placeholder-text-muted::placeholder {
+  color: #94a3b8;
+}
+/* Empty state icon: more visible in light mode */
+html.light .text-text-muted\/30 {
+  color: rgba(115, 115, 115, 0.5) !important;
+}
+
+/* Light mode: softer accent for selected/hover states (less lavender) */
+html.light [class*="bg-accent/10"] {
+  background-color: rgba(99, 102, 241, 0.06) !important;
+}
+html.light [class*="bg-accent/15"] {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+}
+html.light [class*="bg-accent/20"] {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+html.light [class*="shadow-[0_0_12px_rgba(129,140,248"] {
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08) !important;
+}
+
+/* Masonry layout: xếp khít, không để trống dưới các card ngắn */
+.category-grid {
+  column-count: 1;
+  column-gap: 12px;
+  min-width: 0;
+}
+
 @media (min-width: 768px) {
   .category-grid-cols-2 {
     column-count: 2;
@@ -63,7 +189,8 @@ body {
 .category-grid-item {
   cursor: grab;
   break-inside: avoid;
-  margin-bottom: 16px; /* khít dọc như masonry */
+  margin-bottom: 12px;
+  min-width: 0;
 }
 
 .category-grid-item--dragged {
@@ -83,4 +210,8 @@ body {
   border: 2px dashed rgba(129, 140, 248, 0.9);
   box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
   pointer-events: none;
+}
+html.light .category-grid-item--target::before {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }

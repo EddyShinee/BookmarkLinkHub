@@ -41,6 +41,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  useEffect(() => {
+    if (!loaded) return;
+    const root = document.documentElement;
+    root.classList.toggle('dark', settings.theme === 'dark');
+    root.classList.toggle('light', settings.theme === 'light');
+  }, [loaded, settings.theme]);
+
   const persist = useCallback((next: AppSettings) => {
     chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
   }, []);

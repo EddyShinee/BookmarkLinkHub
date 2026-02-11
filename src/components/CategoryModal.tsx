@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSettings } from '../contexts/SettingsContext';
+import { getT } from '../lib/i18n';
 
 const CATEGORY_COLORS = [
   '#818CF8', '#10B981', '#A855F7', '#FB923C', '#EC4899', '#3B82F6', '#EAB308', '#06B6D4', '#F43F5E', '#8B5CF6',
@@ -18,15 +20,19 @@ interface CategoryModalProps {
   onClose: () => void;
   onSave: (name: string, color: string | null, id?: string) => Promise<void>;
   onMoveToBoard?: (categoryId: string, targetBoardId: string) => void;
+  initialOpenMoveModal?: boolean;
 }
 
-export default function CategoryModal({ open, boardId, editCategory, boards = [], onClose, onSave, onMoveToBoard }: CategoryModalProps) {
+export default function CategoryModal({ open, boardId, editCategory, boards = [], onClose, onSave, onMoveToBoard, initialOpenMoveModal }: CategoryModalProps) {
+  const settings = useSettings();
+  const t = getT(settings.locale);
   const [name, setName] = useState('');
   const [useCustomColor, setUseCustomColor] = useState(false);
   const [color, setColor] = useState('#818CF8');
   const [bgOpacity, setBgOpacity] = useState(15);
   const [saving, setSaving] = useState(false);
-  const [moveToBoardId, setMoveToBoardId] = useState<string>('');
+  const [moveToBoardModalOpen, setMoveToBoardModalOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -48,9 +54,9 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
         setColor('#818CF8');
         setBgOpacity(15);
       }
-      setMoveToBoardId('');
+      setMoveToBoardModalOpen(!!initialOpenMoveModal);
     }
-  }, [open, editCategory?.name, editCategory?.color]);
+  }, [open, editCategory?.name, editCategory?.color, initialOpenMoveModal]);
 
   if (!open) return null;
 
@@ -76,12 +82,31 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
     }
   };
 
-  const handleMoveTo = () => {
-    if (editCategory?.id && moveToBoardId && onMoveToBoard) {
-      onMoveToBoard(editCategory.id, moveToBoardId);
+  const handleMoveTo = (targetBoardId: string) => {
+    if (editCategory?.id && onMoveToBoard) {
+      onMoveToBoard(editCategory.id, targetBoardId);
+      setMoveToBoardModalOpen(false);
       onClose();
     }
   };
+
+  if (initialOpenMoveModal && editCategory && canMoveTo) {
+    return (
+      <MoveToBoardModalContent
+          title={t.moveToBoardModalTitle}
+          categoryName={editCategory.name}
+          currentBoardId={editCategory.board_id}
+          boards={boards}
+          searchPlaceholder={t.moveToBoardSearchPlaceholder}
+          currentLabel={t.moveBookmarkCurrent}
+          noResultsLabel={t.moveBookmarkNoResults}
+          cancelLabel={t.cancel}
+          onSelect={(boardId) => handleMoveTo(boardId)}
+          onClose={onClose}
+          searchInputRef={searchInputRef}
+        />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -173,29 +198,14 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
           </div>
           {canMoveTo && (
             <div className="mb-3">
-              <label className="block text-xs font-medium text-text-secondary mb-1.5">Di chuyển sang board</label>
-              <select
-                value={moveToBoardId}
-                onChange={(e) => setMoveToBoardId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+              <button
+                type="button"
+                onClick={() => setMoveToBoardModalOpen(true)}
+                className="w-full px-3 py-2 rounded-lg text-sm border border-accent/50 text-accent hover:bg-accent/10 flex items-center justify-center gap-2"
               >
-                <option value="">— Chọn board —</option>
-                {otherBoards.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              {moveToBoardId && (
-                <button
-                  type="button"
-                  onClick={handleMoveTo}
-                  className="mt-1.5 w-full px-3 py-1.5 rounded-lg text-xs border border-accent/50 text-accent hover:bg-accent/10 flex items-center justify-center gap-1.5"
-                >
-                  <span className="material-icons-round text-[14px]">drive_file_move</span>
-                  Move to &quot;{otherBoards.find((x) => x.id === moveToBoardId)?.name}&quot;
-                </button>
-              )}
+                <span className="material-icons-round text-[18px]">drive_file_move</span>
+                {t.moveToBoardModalTitle}
+              </button>
             </div>
           )}
           <div className="flex justify-end gap-1.5">
@@ -207,6 +217,127 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
             </button>
           </div>
         </form>
+      </div>
+
+      {moveToBoardModalOpen && canMoveTo && (
+        <MoveToBoardModalContent
+          title={t.moveToBoardModalTitle}
+          categoryName={editCategory?.name ?? ''}
+          currentBoardId={editCategory?.board_id}
+          boards={boards}
+          searchPlaceholder={t.moveToBoardSearchPlaceholder}
+          currentLabel={t.moveBookmarkCurrent}
+          noResultsLabel={t.moveBookmarkNoResults}
+          cancelLabel={t.cancel}
+          onSelect={(boardId) => handleMoveTo(boardId)}
+          onClose={() => setMoveToBoardModalOpen(false)}
+          searchInputRef={searchInputRef}
+        />
+      )}
+    </div>
+  );
+}
+
+function MoveToBoardModalContent({
+  title,
+  categoryName,
+  currentBoardId,
+  boards,
+  searchPlaceholder,
+  currentLabel,
+  noResultsLabel,
+  cancelLabel,
+  onSelect,
+  onClose,
+  searchInputRef,
+}: {
+  title: string;
+  categoryName: string;
+  currentBoardId?: string;
+  boards: BoardOption[];
+  searchPlaceholder: string;
+  currentLabel: string;
+  noResultsLabel: string;
+  cancelLabel: string;
+  onSelect: (boardId: string) => void;
+  onClose: () => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const boardOrder = [...boards].sort((a, b) => a.sort_order - b.sort_order);
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = q === '' ? boardOrder : boardOrder.filter((b) => b.name.toLowerCase().includes(q));
+  const hasResults = filtered.length > 0;
+
+  useEffect(() => {
+    setSearchQuery('');
+    const id = setTimeout(() => searchInputRef.current?.focus(), 50);
+    return () => clearTimeout(id);
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+    >
+      <div
+        className="bg-sidebar border border-white/10 rounded-xl shadow-xl w-full max-w-[420px] max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex-shrink-0 px-3 pt-2.5 pb-2 border-b border-white/10">
+          <h3 className="text-sm font-semibold text-white mb-0.5">{title}</h3>
+          <p className="text-[11px] text-text-muted truncate mb-2">{categoryName}</p>
+          <div className="relative">
+            <span className="material-icons-round absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[13px] pointer-events-none">
+              search
+            </span>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder:text-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+            />
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="p-2 pb-2.5">
+            {!hasResults ? (
+              <p className="text-[11px] text-text-muted py-4 text-center">{noResultsLabel}</p>
+            ) : (
+              filtered.map((board) => {
+                const isCurrent = currentBoardId === board.id;
+                return (
+                  <div key={board.id} className="mb-1.5 last:mb-0 rounded-lg border border-white/10 bg-white/5 p-1.5">
+                    <button
+                      type="button"
+                      disabled={isCurrent}
+                      onClick={() => onSelect(board.id)}
+                      className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs transition ${
+                        isCurrent
+                          ? 'cursor-not-allowed bg-white/5 text-text-muted border border-white/10'
+                          : 'text-text-secondary hover:bg-white/10 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <span className="font-medium truncate flex-1 min-w-0 text-sm">{board.name}</span>
+                      {isCurrent && (
+                        <span className="text-[10px] text-text-muted flex-shrink-0 px-1.5 py-0.5 rounded bg-white/5">
+                          {currentLabel}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        <div className="flex-shrink-0 p-2 border-t border-white/10">
+          <button type="button" onClick={onClose} className="w-full px-3 py-1.5 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
+            {cancelLabel}
+          </button>
+        </div>
       </div>
     </div>
   );
