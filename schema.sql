@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS public.boards (
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     sort_order INTEGER DEFAULT 0,
+    category_columns INTEGER NULL CHECK (category_columns BETWEEN 2 AND 6),
+    category_sort_order TEXT NULL CHECK (category_sort_order IN ('created_asc', 'created_desc', 'name_asc', 'name_desc')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -131,6 +133,7 @@ CREATE POLICY "Users can delete columns in own boards"
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     board_id UUID NOT NULL REFERENCES public.boards(id) ON DELETE CASCADE,
+    column_id UUID NULL REFERENCES public.board_columns(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     color TEXT DEFAULT '#818CF826',
     icon TEXT DEFAULT 'folder',
@@ -142,6 +145,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
 
 -- Create index for faster queries
 CREATE INDEX IF NOT EXISTS categories_board_id_idx ON public.categories(board_id);
+CREATE INDEX IF NOT EXISTS categories_column_id_idx ON public.categories(column_id);
 
 -- Enable RLS
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;

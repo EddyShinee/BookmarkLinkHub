@@ -14,10 +14,11 @@ export interface Bookmark {
   updated_at: string;
 }
 
-/** Matches schema: categories (id, board_id, name, color, icon, bg_opacity, sort_order) */
+/** Matches schema: categories (id, board_id, column_id, name, color, icon, bg_opacity, sort_order) */
 export interface Category {
   id: string;
   board_id: string;
+  column_id?: string | null;
   name: string;
   color?: string | null;
   icon?: string | null;
@@ -28,12 +29,14 @@ export interface Category {
   bookmarks?: Bookmark[];
 }
 
-/** Matches schema: boards (id, user_id, name, sort_order) */
+/** Matches schema: boards (id, user_id, name, sort_order, category_columns, category_sort_order) */
 export interface Board {
   id: string;
   user_id: string;
   name: string;
   sort_order: number;
+  category_columns?: number | null;
+  category_sort_order?: string | null;
   created_at: string;
   updated_at: string;
   categories?: Category[];

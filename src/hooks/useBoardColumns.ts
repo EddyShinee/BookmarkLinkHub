@@ -12,7 +12,7 @@ export interface BoardColumn {
 
 export function useBoardColumns(boardId: string | null) {
   const [columns, setColumns] = useState<BoardColumn[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchColumns = useCallback(async () => {

@@ -6,6 +6,9 @@ export type Theme = 'dark' | 'light';
 export type CategoryCardHeight = 'auto' | 'equal';
 export type OpenLinkIn = 'new_tab' | 'current_tab';
 
+/** Sắp xếp category: theo ngày tạo (tăng/giảm) hoặc theo tên (A-Z / Z-A) */
+export type CategorySortOrder = 'created_asc' | 'created_desc' | 'name_asc' | 'name_desc';
+
 export interface DragDropSettings {
   board: boolean;
   category: boolean;
@@ -15,6 +18,7 @@ export interface DragDropSettings {
 export interface AppSettings {
   locale: Locale;
   categoryColumns: 2 | 3 | 4 | 5 | 6;
+  categorySortOrder: CategorySortOrder;
   theme: Theme;
   backgroundColor: string;
   backgroundMode: 'color' | 'image';
@@ -29,6 +33,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   locale: 'vi',
   categoryColumns: 4,
+  categorySortOrder: 'name_asc',
   theme: 'dark',
   backgroundColor: '#0F172A',
   backgroundMode: 'color',

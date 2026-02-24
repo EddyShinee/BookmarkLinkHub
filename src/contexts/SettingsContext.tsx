@@ -8,11 +8,13 @@ import {
   type CategoryCardHeight,
   type OpenLinkIn,
   type DragDropSettings,
+  type CategorySortOrder,
 } from '../lib/settings';
 
 interface SettingsContextValue extends AppSettings {
   setLocale: (v: Locale) => void;
   setCategoryColumns: (v: 2 | 3 | 4 | 5 | 6) => void;
+  setCategorySortOrder: (v: CategorySortOrder) => void;
   setTheme: (v: Theme) => void;
   setBackgroundColor: (v: string) => void;
   setBackgroundMode: (v: 'color' | 'image') => void;
@@ -67,6 +69,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ...settings,
     setLocale: (v) => update({ locale: v }),
     setCategoryColumns: (v) => update({ categoryColumns: v }),
+    setCategorySortOrder: (v) => update({ categorySortOrder: v }),
     setTheme: (v) => update({ theme: v }),
     setBackgroundColor: (v) => update({ backgroundColor: v }),
     setBackgroundMode: (v) => update({ backgroundMode: v }),

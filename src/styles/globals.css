@@ -161,28 +161,37 @@ html.light [class*="shadow-[0_0_12px_rgba(129,140,248"] {
   box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08) !important;
 }
 
-/* Masonry layout: xếp khít, không để trống dưới các card ngắn */
+/* Grid cho Board Options: N cột cố định, mỗi ô là một cột (board_column) chứa nhiều category card */
 .category-grid {
-  column-count: 1;
-  column-gap: 12px;
+  display: grid;
+  gap: 12px;
   min-width: 0;
+  align-items: stretch;
 }
 
-@media (min-width: 768px) {
-  .category-grid-cols-2 {
-    column-count: 2;
-  }
-  .category-grid-cols-3 {
-    column-count: 3;
-  }
-  .category-grid-cols-4 {
-    column-count: 4;
-  }
-  .category-grid-cols-5 {
-    column-count: 5;
-  }
-  .category-grid-cols-6 {
-    column-count: 6;
+.category-grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.category-grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.category-grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.category-grid-cols-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.category-grid-cols-6 {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+@media (max-width: 767px) {
+  .category-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -214,4 +223,52 @@ html.light [class*="shadow-[0_0_12px_rgba(129,140,248"] {
 html.light .category-grid-item--target::before {
   border-color: rgba(99, 102, 241, 0.6);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Drop indicator line with dots at edges */
+.drop-indicator-line {
+  position: relative;
+  box-shadow: 0 0 6px rgba(129, 140, 248, 0.5);
+}
+.drop-indicator-line::before,
+.drop-indicator-line::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent, #818cf8);
+  transform: translateY(-50%);
+  box-shadow: 0 0 4px rgba(129, 140, 248, 0.6);
+}
+.drop-indicator-line::before { left: -3px; }
+.drop-indicator-line::after { right: -3px; }
+
+/* Drag overlay card */
+.drag-overlay-card {
+  opacity: 0.92;
+  transform: rotate(1.5deg) scale(1.03);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(129, 140, 248, 0.3);
+  border-radius: 12px;
+  cursor: grabbing;
+}
+html.light .drag-overlay-card {
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+
+/* Placeholder ghost at original position */
+.drag-placeholder {
+  opacity: 0.25;
+  transform: scale(0.97);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.drag-placeholder > * {
+  filter: grayscale(0.5);
 }

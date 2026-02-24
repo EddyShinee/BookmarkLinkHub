@@ -6,14 +6,20 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  pointerWithin,
   closestCenter,
+  useDroppable,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
+  type Over,
 } from '@dnd-kit/core';
-import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '../hooks/useAuth';
 import { useBookmarks } from '../hooks/useBookmarks';
+import { useBoardColumns } from '../hooks/useBoardColumns';
 import { useCategories } from '../hooks/useCategories';
 import type { Bookmark, Category, Board } from '../hooks/useBookmarks';
 import { useSettings } from '../contexts/SettingsContext';
@@ -28,6 +34,7 @@ import Toast, { type ToastType } from '../components/Toast';
 import SearchSpotlightModal, { type SpotlightItem } from '../components/SearchSpotlightModal';
 import { useSearchShortcut } from '../hooks/useSearchShortcut';
 import { getT } from '../lib/i18n';
+import type { CategorySortOrder } from '../lib/settings';
 import { supabase } from '../lib/supabaseClient';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
 import { parseNetscapeBookmarksHtml } from '../lib/parseBookmarksHtml';
@@ -37,14 +44,62 @@ const FALLBACK_DOT_COLORS = [
   '#818CF8', '#10B981', '#A855F7', '#FB923C', '#EC4899', '#3B82F6', '#EAB308', '#06B6D4',
 ];
 
-interface CategoryGridIndex {
-  id: string;
-  gridIndex: number;
+const COLUMN_DROP_PREFIX = 'column-';
+
+/** Prefer pointer position; fallback to closest center when pointer is in gap between columns */
+const categoryCollisionDetection: CollisionDetection = (args) => {
+  const pointer = pointerWithin(args);
+  if (pointer.length > 0) return pointer;
+  return closestCenter(args);
+};
+
+function ColumnDroppable({
+  columnId,
+  children,
+  className,
+  isEmpty,
+}: {
+  columnId: string;
+  children: React.ReactNode;
+  className?: string;
+  isEmpty?: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: COLUMN_DROP_PREFIX + columnId });
+  return (
+    <div
+      ref={setNodeRef}
+      className={[
+        className ?? '',
+        'rounded-xl transition-all duration-200',
+        isOver
+          ? 'bg-accent/10 ring-2 ring-accent/40 ring-offset-1 ring-offset-transparent min-h-[120px]'
+          : '',
+      ].join(' ')}
+    >
+      {children}
+      {isEmpty && isOver && (
+        <div className="flex items-center justify-center h-20 text-accent/60 text-xs font-medium select-none">
+          <span className="material-symbols-outlined text-base mr-1">add_circle</span>
+          Thả vào đây
+        </div>
+      )}
+    </div>
+  );
 }
+
+/** When over is column: { columnId, insertAtStart }; used for intent + visual */
+type ColumnDropIndicator = { columnId: string; insertAtStart: boolean } | null;
+
+/** Shows where a category will be inserted: above or below this card */
+const DROP_INDICATOR_CLASS =
+  'absolute left-0 right-0 h-[3px] rounded-full bg-accent pointer-events-none z-10 drop-indicator-line';
+const DROP_INDICATOR_BLOCK_CLASS =
+  'h-[3px] rounded-full bg-accent pointer-events-none flex-shrink-0 drop-indicator-line';
 
 function SortableCategoryCard({
   category,
   activeCategoryId,
+  dropIndicator,
   fallbackDotColor,
   searchQuery,
   onOpenBookmark,
@@ -72,6 +127,8 @@ function SortableCategoryCard({
 }: {
   category: Category & { bookmarks: Bookmark[] };
   activeCategoryId: string | null;
+  /** When dragging, indicates insert above/below this card */
+  dropIndicator?: { overId: string; insertAbove: boolean } | null;
   fallbackDotColor: string;
   searchQuery: string;
   onOpenBookmark: (url: string) => void;
@@ -97,21 +154,28 @@ function SortableCategoryCard({
   onBookmarkDragEnd?: () => void;
   disabled?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id,
     transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
     disabled,
   });
   const isActive = isDragging || activeCategoryId === category.id;
+  const showLineAbove = false;
+  const showLineBelow = false;
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isActive ? 0 : 1,
     pointerEvents: isActive ? 'none' : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} className="break-inside-avoid category-grid-item" {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className={`break-inside-avoid category-grid-item relative ${isActive ? 'drag-placeholder' : ''}`}>
+      {showLineAbove && <div className={DROP_INDICATOR_CLASS} style={{ top: -6 }} aria-hidden />}
       <CategoryCard
+        dragHandleProps={
+          !disabled
+            ? { setActivatorNodeRef, attributes, listeners }
+            : undefined
+        }
         category={category}
         fallbackDotColor={fallbackDotColor}
         searchQuery={searchQuery}
@@ -140,6 +204,7 @@ function SortableCategoryCard({
         onBookmarkDrop={onBookmarkDrop}
         onBookmarkDragEnd={onBookmarkDragEnd}
       />
+      {showLineBelow && <div className={DROP_INDICATOR_CLASS} style={{ bottom: -6 }} aria-hidden />}
     </div>
   );
 }
@@ -155,6 +220,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const settings = useSettings();
   const { boards, setBoards, loading: boardsLoading, error: boardsError, refetch: refetchBoards } = useBookmarks(user?.id);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const selectedBoard = boards.find((b) => b.id === selectedBoardId) ?? null;
+  const { columns: boardColumns, loading: columnsLoading, refetch: refetchBoardColumns } = useBoardColumns(selectedBoardId);
   const { categories, setCategories, loading: categoriesLoading, refetch: refetchCategories } = useCategories(selectedBoardId);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -166,6 +233,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  /** Last droppable "over" during category drag; used when DragEnd fires with over=null */
+  const lastCategoryOverRef = useRef<Over | null>(null);
 
   const [boardModalOpen, setBoardModalOpen] = useState(false);
   const [authenticatorModalOpen, setAuthenticatorModalOpen] = useState(!!initialOpenAuthenticator);
@@ -194,6 +263,8 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const [draggedBoardId, setDraggedBoardId] = useState<string | null>(null);
   const [dropBoardIndex, setDropBoardIndex] = useState<number | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ overId: string; insertAbove: boolean } | null>(null);
+  const [columnDropIndicator, setColumnDropIndicator] = useState<ColumnDropIndicator>(null);
   const [draggedBookmark, setDraggedBookmark] = useState<{ id: string; categoryId: string } | null>(null);
   const [dropBookmarkTarget, setDropBookmarkTarget] = useState<{ id: string; categoryId: string; index: number } | null>(null);
 
@@ -202,11 +273,12 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [columnConfigPopupOpen, setColumnConfigPopupOpen] = useState(false);
+  const [columnConfigPopupRect, setColumnConfigPopupRect] = useState<{ top: number; left: number } | null>(null);
+  const columnConfigTriggerRef = useRef<HTMLButtonElement>(null);
+  const columnConfigPopupRef = useRef<HTMLDivElement>(null);
 
-  // Stable grid order for categories (gridIndex is single source of truth for layout)
-  const [categoryGridIndexes, setCategoryGridIndexes] = useState<CategoryGridIndex[]>([]);
   const [activeDragCategory, setActiveDragCategory] = useState<Category & { bookmarks: Bookmark[] } | null>(null);
-  const categoryGridRef = useRef<HTMLDivElement | null>(null);
 
   // Toast Loading cho các trạng thái loading khác
   useEffect(() => {
@@ -281,48 +353,6 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     });
   }, [allBookmarks, allCategories, boards]);
 
-  // Normalize grid indexes to be dense 0..n-1
-  const normalizeCategoryGridIndexes = useCallback((items: CategoryGridIndex[]): CategoryGridIndex[] => {
-    const sorted = [...items].sort((a, b) => a.gridIndex - b.gridIndex);
-    return sorted.map((item, idx) => ({ ...item, gridIndex: idx }));
-  }, []);
-
-  // Load category grid order from chrome.storage.local per board
-  useEffect(() => {
-    if (!selectedBoardId || categories.length === 0) {
-      setCategoryGridIndexes([]);
-      return;
-    }
-
-    const storageKey = `linkhub_category_grid_${selectedBoardId}`;
-
-    if (!(typeof chrome !== 'undefined' && chrome.storage?.local)) {
-      // Fallback in non-extension env: derive from current array order
-      const fallback = categories.map((c, idx) => ({ id: c.id, gridIndex: idx }));
-      setCategoryGridIndexes(normalizeCategoryGridIndexes(fallback));
-      return;
-    }
-
-    chrome.storage.local.get([storageKey], (result) => {
-      const stored = (result[storageKey] as CategoryGridIndex[] | undefined) ?? [];
-      const currentIds = new Set(categories.map((c) => c.id));
-
-      // Keep only entries that still exist
-      const fromStored = stored.filter((item) => currentIds.has(item.id));
-
-      // Add new categories that don't have gridIndex yet
-      const missing = categories
-        .filter((c) => !fromStored.some((item) => item.id === c.id))
-        .map((c, idx) => ({
-          id: c.id,
-          gridIndex: fromStored.length + idx,
-        }));
-
-      const merged = normalizeCategoryGridIndexes([...fromStored, ...missing]);
-      setCategoryGridIndexes(merged);
-    });
-  }, [selectedBoardId, categories, normalizeCategoryGridIndexes]);
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -333,6 +363,43 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [categoryMenuId]);
+
+  // Vị trí popup Board Options (khi mở)
+  useEffect(() => {
+    if (!columnConfigPopupOpen || !columnConfigTriggerRef.current) {
+      setColumnConfigPopupRect(null);
+      return;
+    }
+    const updateRect = () => {
+      const el = columnConfigTriggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setColumnConfigPopupRect({
+        top: r.bottom + 4,
+        left: r.right - 260,
+      });
+    };
+    updateRect();
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [columnConfigPopupOpen]);
+
+  // Đóng Board Options popup bằng mousedown (tránh đóng trước khi click nút kịp xử lý)
+  useEffect(() => {
+    const handleMouseDownOutside = (e: MouseEvent) => {
+      if (!columnConfigPopupOpen) return;
+      const target = e.target as Node;
+      const insideTrigger = columnConfigTriggerRef.current?.contains(target);
+      const insidePopup = columnConfigPopupRef.current?.contains(target);
+      if (!insideTrigger && !insidePopup) setColumnConfigPopupOpen(false);
+    };
+    document.addEventListener('mousedown', handleMouseDownOutside);
+    return () => document.removeEventListener('mousedown', handleMouseDownOutside);
+  }, [columnConfigPopupOpen]);
 
   // Load data for global search across all boards
   useEffect(() => {
@@ -523,65 +590,196 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   useSearchShortcut(openSpotlight);
 
-  // --- Category grid helpers ------------------------------------------------
+  // Ensure board has N columns when none (bootstrap); DB check prevents duplicates
+  const numColumnsPreferred = selectedBoard?.category_columns ?? settings.categoryColumns;
+  const syncingColumnsRef = useRef(false);
+  useEffect(() => {
+    if (!selectedBoardId || columnsLoading || syncingColumnsRef.current) return;
+    if (boardColumns.length >= numColumnsPreferred) return;
+    syncingColumnsRef.current = true;
+    (async () => {
+      try {
+        if (boardColumns.length === 0) {
+          const { data: existing } = await supabase
+            .from('board_columns')
+            .select('id')
+            .eq('board_id', selectedBoardId)
+            .limit(1);
+          if (existing && existing.length > 0) {
+            await refetchBoardColumns();
+            return;
+          }
+        }
+        const startIdx = boardColumns.length;
+        await Promise.all(
+          Array.from({ length: numColumnsPreferred - startIdx }, (_, i) =>
+            supabase.from('board_columns').insert({
+              board_id: selectedBoardId,
+              name: `Column ${startIdx + i + 1}`,
+              sort_order: startIdx + i,
+            })
+          )
+        );
+        await refetchBoardColumns();
+      } finally {
+        syncingColumnsRef.current = false;
+      }
+    })();
+  }, [selectedBoardId, columnsLoading, boardColumns.length, numColumnsPreferred, refetchBoardColumns]);
 
-  const sortedCategoriesForGrid = useMemo(() => {
-    if (categories.length === 0) return [];
-    if (categoryGridIndexes.length === 0) {
-      // Fallback: derive from current array order
-      return categories.map((cat, idx) => ({
-        category: cat,
-        gridIndex: idx,
-      }));
-    }
-    const indexById = new Map(categoryGridIndexes.map((item) => [item.id, item.gridIndex]));
-    const withIndex = categories.map((cat, idx) => ({
-      category: cat,
-      gridIndex: indexById.get(cat.id) ?? idx,
-    }));
-    return withIndex.sort((a, b) => a.gridIndex - b.gridIndex);
-  }, [categories, categoryGridIndexes]);
+  // Sắp xếp category: ưu tiên theo board, không có thì dùng Settings
+  const effectiveSortOrder: CategorySortOrder =
+    (selectedBoard?.category_sort_order as CategorySortOrder | undefined) ?? settings.categorySortOrder;
 
-  const saveCategoryGridToStorage = useCallback(
-    (items: CategoryGridIndex[]) => {
-      if (!selectedBoardId) return;
-      if (!(typeof chrome !== 'undefined' && chrome.storage?.local)) return;
-      const storageKey = `linkhub_category_grid_${selectedBoardId}`;
-      chrome.storage.local.set({ [storageKey]: items }, () => {
-        // ignore callback errors
-      });
+  const categorySortCompare = useCallback(
+    (a: Category & { bookmarks: Bookmark[] }, b: Category & { bookmarks: Bookmark[] }) => {
+      switch (effectiveSortOrder) {
+        case 'created_asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'created_desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'name_asc':
+          return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+        case 'name_desc':
+          return (b.name || '').localeCompare(a.name || '', undefined, { sensitivity: 'base' });
+        default:
+          return a.sort_order - b.sort_order;
+      }
     },
-    [selectedBoardId]
+    [effectiveSortOrder]
   );
+
+  // Assign column_id to categories that still have null and normalize sort_order
+  const assigningOrphansRef = useRef(false);
+  useEffect(() => {
+    if (!boardColumns.length || !categories.length || assigningOrphansRef.current) return;
+    const firstColId = boardColumns[0].id;
+    const orphans = categories.filter((c) => !c.column_id);
+    if (orphans.length === 0) return;
+    assigningOrphansRef.current = true;
+    (async () => {
+      const existing = categories.filter((c) => c.column_id === firstColId);
+      let nextOrder = existing.length === 0 ? 0 : Math.max(...existing.map((c) => c.sort_order), -1) + 1;
+      for (const cat of orphans) {
+        await supabase
+          .from('categories')
+          .update({ column_id: firstColId, sort_order: nextOrder++, updated_at: new Date().toISOString() })
+          .eq('id', cat.id);
+      }
+      await refetchCategories();
+      assigningOrphansRef.current = false;
+    })();
+  }, [boardColumns, categories, refetchCategories]);
+
+  // Group categories by column; always order by sort_order so drag order is stable on refresh
+  const categoriesByColumn = useMemo(() => {
+    const map = new Map<string, (Category & { bookmarks: Bookmark[] })[]>();
+    for (const col of boardColumns) {
+      map.set(col.id, []);
+    }
+    const firstColId = boardColumns[0]?.id ?? null;
+    for (const cat of categories) {
+      const colId = cat.column_id ?? firstColId;
+      if (colId) {
+        const list = map.get(colId) ?? [];
+        list.push(cat);
+        map.set(colId, list);
+      } else {
+        const list = map.get(boardColumns[0]?.id ?? '') ?? [];
+        list.push(cat);
+        if (boardColumns[0]) map.set(boardColumns[0].id, list);
+      }
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const d = a.sort_order - b.sort_order;
+        if (d !== 0) return d;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+    }
+    return map;
+  }, [boardColumns, categories]);
 
   const categoryGridSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 10 } })
   );
 
-  const handleCategoryDragEndDnd = useCallback(
-    (event: DragEndEvent) => {
+  const handleCategoryDragEnd = useCallback(
+    async (event: DragEndEvent) => {
       const { active, over } = event;
+      setActiveCategoryId(null);
       if (!over || active.id === over.id) return;
-      const fromIndex = sortedCategoriesForGrid.findIndex((x) => x.category.id === active.id);
-      const toIndex = sortedCategoriesForGrid.findIndex((x) => x.category.id === over.id);
-      if (fromIndex === -1 || toIndex === -1) return;
-      const reordered = arrayMove(
-        sortedCategoriesForGrid.map((x) => x.category.id),
-        fromIndex,
-        toIndex
+      const overId = String(over.id);
+      const draggedCat = categories.find((c) => c.id === active.id);
+      if (!draggedCat) return;
+
+      const pointerY = (event.activatorEvent as PointerEvent).clientY + event.delta.y;
+      const overCenterY = over.rect.top + over.rect.height / 2;
+      const pointerAboveCenter = pointerY < overCenterY;
+
+      let targetColumnId: string;
+      let targetSortOrder: number;
+
+      if (overId.startsWith(COLUMN_DROP_PREFIX)) {
+        targetColumnId = overId.slice(COLUMN_DROP_PREFIX.length);
+        const inCol = categoriesByColumn.get(targetColumnId) ?? [];
+        targetSortOrder = pointerAboveCenter ? 0 : inCol.length;
+      } else {
+        const targetCat = categories.find((c) => c.id === overId);
+        if (!targetCat) return;
+        targetColumnId = targetCat.column_id ?? boardColumns[0]?.id ?? '';
+        const inCol = (categoriesByColumn.get(targetColumnId) ?? []).filter((c) => c.id !== draggedCat.id);
+        const toIndex = inCol.findIndex((c) => c.id === overId);
+        const baseIndex = toIndex >= 0 ? toIndex : inCol.length;
+        targetSortOrder = pointerAboveCenter ? baseIndex : baseIndex + 1;
+      }
+
+      if (draggedCat.column_id === targetColumnId && draggedCat.sort_order === targetSortOrder) return;
+
+      const now = new Date().toISOString();
+      const sourceColumnId = draggedCat.column_id ?? boardColumns[0]?.id ?? '';
+      const movedBetweenColumns = sourceColumnId !== targetColumnId;
+
+      // Reorder target column
+      const targetCats = (categoriesByColumn.get(targetColumnId) ?? []).filter((c) => c.id !== draggedCat.id);
+      const reordered = [...targetCats.slice(0, targetSortOrder), draggedCat, ...targetCats.slice(targetSortOrder)];
+
+      // Batch all updates
+      const updates: { id: string; column_id: string; sort_order: number }[] = [];
+      for (let i = 0; i < reordered.length; i++) {
+        const cat = reordered[i];
+        if (cat.id === draggedCat.id || cat.column_id !== targetColumnId || cat.sort_order !== i) {
+          updates.push({ id: cat.id, column_id: targetColumnId, sort_order: i });
+        }
+      }
+
+      // Reindex source column to close the gap
+      if (movedBetweenColumns) {
+        const sourceCats = (categoriesByColumn.get(sourceColumnId) ?? []).filter((c) => c.id !== draggedCat.id);
+        for (let i = 0; i < sourceCats.length; i++) {
+          if (sourceCats[i].sort_order !== i) {
+            updates.push({ id: sourceCats[i].id, column_id: sourceColumnId, sort_order: i });
+          }
+        }
+      }
+
+      // Optimistic UI update
+      setCategories((prev) => prev.map((c) => {
+        const u = updates.find((up) => up.id === c.id);
+        return u ? { ...c, column_id: u.column_id, sort_order: u.sort_order } : c;
+      }));
+
+      // Parallel DB updates
+      await Promise.all(
+        updates.map((u) =>
+          supabase
+            .from('categories')
+            .update({ column_id: u.column_id, sort_order: u.sort_order, updated_at: now })
+            .eq('id', u.id)
+        )
       );
-      setCategoryGridIndexes((prev) => {
-        const indexById = new Map(prev.map((item) => [item.id, item]));
-        const updated = reordered.map((id, idx) => {
-          const existing = indexById.get(id);
-          return existing ? { ...existing, gridIndex: idx } : { id, gridIndex: idx };
-        });
-        const normalized = normalizeCategoryGridIndexes(updated);
-        saveCategoryGridToStorage(normalized);
-        return normalized;
-      });
     },
-    [sortedCategoriesForGrid, normalizeCategoryGridIndexes, saveCategoryGridToStorage]
+    [categories, boardColumns, categoriesByColumn, setCategories]
   );
 
   const handleSignOut = () => supabase.auth.signOut();
@@ -710,13 +908,39 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     reader.readAsText(file);
   };
 
-  const handleSaveBoard = async (name: string, id?: string) => {
+  const handleSaveBoard = async (name: string, id?: string, categoryColumns?: number | null) => {
     if (!user?.id) return;
     if (id) {
-      await supabase.from('boards').update({ name, updated_at: new Date().toISOString() }).eq('id', id);
+      await supabase
+        .from('boards')
+        .update({
+          name,
+          category_columns: categoryColumns ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
     } else {
       const maxOrder = boards.length === 0 ? 0 : Math.max(...boards.map((b) => b.sort_order), 0);
-      await supabase.from('boards').insert({ user_id: user.id, name, sort_order: maxOrder + 1 });
+      const { data: newBoard, error: insertErr } = await supabase
+        .from('boards')
+        .insert({
+          user_id: user.id,
+          name,
+          sort_order: maxOrder + 1,
+          category_columns: categoryColumns ?? null,
+        })
+        .select('id')
+        .single();
+      if (!insertErr && newBoard?.id) {
+        const numCols = categoryColumns ?? settings.categoryColumns;
+        for (let i = 0; i < numCols; i++) {
+          await supabase.from('board_columns').insert({
+            board_id: newBoard.id,
+            name: `Column ${i + 1}`,
+            sort_order: i,
+          });
+        }
+      }
     }
     await refetchBoards();
     setBoardModalOpen(false);
@@ -784,6 +1008,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   const handleSaveCategory = async (name: string, color: string | null, id?: string) => {
     if (!selectedBoardId) return;
+    const firstColId = boardColumns[0]?.id ?? null;
     if (id) {
       await supabase
         .from('categories')
@@ -794,12 +1019,14 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
         })
         .eq('id', id);
     } else {
-      const maxOrder = categories.length === 0 ? 0 : Math.max(...categories.map((c) => c.sort_order), 0);
+      const colCats = firstColId ? (categoriesByColumn.get(firstColId) ?? []) : [];
+      const maxOrder = colCats.length === 0 ? 0 : Math.max(...colCats.map((c) => c.sort_order), -1) + 1;
       await supabase.from('categories').insert({
         board_id: selectedBoardId,
+        column_id: firstColId,
         name,
         color: color ?? null,
-        sort_order: maxOrder + 1,
+        sort_order: maxOrder,
       });
     }
     await refetchCategories();
@@ -1020,31 +1247,6 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
     setDraggedBoardId(null);
     setDropBoardIndex(null);
   };
-
-  const categorySensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
-
-  const handleCategoryDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveCategoryId(null);
-      if (!over || active.id === over.id) return;
-      const fromIndex = categories.findIndex((c) => c.id === active.id);
-      if (fromIndex === -1) return;
-      const toIndex = categories.findIndex((c) => c.id === over.id);
-      if (toIndex === -1) return;
-      const newCategories = arrayMove(categories, fromIndex, toIndex);
-      setCategories(newCategories);
-      const now = new Date().toISOString();
-      (async () => {
-        for (let i = 0; i < newCategories.length; i++) {
-          await supabase.from('categories').update({ sort_order: i, updated_at: now }).eq('id', newCategories[i].id);
-        }
-      })();
-    },
-    [categories]
-  );
 
   const handleBookmarkDragStart = (e: React.DragEvent, bookmarkId: string, categoryId: string) => {
     e.dataTransfer.setData('application/x-linkhub-bookmark', JSON.stringify({ bookmarkId, categoryId }));
@@ -1348,7 +1550,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           </div>
         </header>
 
-        <div className="px-4 py-3 z-10 flex items-center justify-between">
+        <div className="px-4 py-3 z-10 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -1368,6 +1570,179 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
               <span className="material-symbols-outlined text-[16px]">link</span>
               {getT(settings.locale).addBookmark}
             </button>
+          </div>
+          <div className="relative min-w-[200px]">
+            <button
+              type="button"
+              ref={columnConfigTriggerRef}
+              onClick={() => setColumnConfigPopupOpen((o) => !o)}
+              disabled={!selectedBoardId}
+              title={!selectedBoardId ? getT(settings.locale).createBoardFirst : undefined}
+              className="w-full glass-panel text-left text-text-secondary hover:text-white hover:bg-white/10 text-xs font-medium py-2.5 px-3 rounded-lg border border-white/10 transition flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-white/80">view_column</span>
+                <span>{getT(settings.locale).boardOptions}</span>
+              </span>
+              <span className="material-icons-round text-[18px] text-white/60 flex-shrink-0">
+                {columnConfigPopupOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+            {columnConfigPopupOpen && columnConfigPopupRect &&
+              createPortal(
+                <div
+                  ref={columnConfigPopupRef}
+                  role="dialog"
+                  aria-label="Board Options"
+                  style={{
+                    position: 'fixed',
+                    top: columnConfigPopupRect.top,
+                    left: Math.max(8, columnConfigPopupRect.left),
+                    zIndex: 10000,
+                  }}
+                  className="w-[260px] rounded-lg border border-white/10 bg-sidebar shadow-xl shadow-black/40 py-3 px-4"
+                >
+                  <p className="text-xs font-medium text-text-secondary mb-2">
+                    {getT(settings.locale).categoryColumns}
+                    <span className="tabular-nums text-accent font-semibold ml-1">({numColumnsPreferred})</span>
+                  </p>
+                  <div className="flex items-center gap-2 mb-4">
+                    <button
+                      type="button"
+                      disabled={!selectedBoardId || numColumnsPreferred <= 2}
+                      onClick={async () => {
+                        if (!selectedBoardId || numColumnsPreferred <= 2) return;
+                        const v = (numColumnsPreferred - 1) as 2 | 3 | 4 | 5 | 6;
+                        setBoards((prev) =>
+                          prev.map((b) =>
+                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
+                          )
+                        );
+                        const { error } = await supabase
+                          .from('boards')
+                          .update({ category_columns: v, updated_at: new Date().toISOString() })
+                          .eq('id', selectedBoardId);
+                        if (error) {
+                          await refetchBoards();
+                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
+                        } else {
+                          await refetchBoards();
+                        }
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-white/10 hover:bg-accent/30 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                      aria-label="-"
+                    >
+                      <span className="material-icons-round text-[18px]">remove</span>
+                    </button>
+                    <input
+                      type="range"
+                      min={2}
+                      max={6}
+                      step={1}
+                      value={numColumnsPreferred}
+                      disabled={!selectedBoardId}
+                      onChange={async (e) => {
+                        const v = Number(e.target.value) as 2 | 3 | 4 | 5 | 6;
+                        if (!selectedBoardId) return;
+                        setBoards((prev) =>
+                          prev.map((b) =>
+                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
+                          )
+                        );
+                        const { error } = await supabase
+                          .from('boards')
+                          .update({ category_columns: v, updated_at: new Date().toISOString() })
+                          .eq('id', selectedBoardId);
+                        if (error) {
+                          await refetchBoards();
+                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
+                        } else {
+                          await refetchBoards();
+                        }
+                      }}
+                      className="flex-1 h-2.5 rounded-full appearance-none bg-white/10 accent-accent cursor-pointer disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
+                    />
+                    <button
+                      type="button"
+                      disabled={!selectedBoardId || numColumnsPreferred >= 6}
+                      onClick={async () => {
+                        if (!selectedBoardId || numColumnsPreferred >= 6) return;
+                        const v = (numColumnsPreferred + 1) as 2 | 3 | 4 | 5 | 6;
+                        setBoards((prev) =>
+                          prev.map((b) =>
+                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
+                          )
+                        );
+                        const { error } = await supabase
+                          .from('boards')
+                          .update({ category_columns: v, updated_at: new Date().toISOString() })
+                          .eq('id', selectedBoardId);
+                        if (error) {
+                          await refetchBoards();
+                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
+                        } else {
+                          await refetchBoards();
+                        }
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-white/10 hover:bg-accent/30 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                      aria-label="+"
+                    >
+                      <span className="material-icons-round text-[18px]">add</span>
+                    </button>
+                  </div>
+                  <div className="border-t border-white/10 pt-3">
+                    <p className="text-xs font-medium text-text-secondary mb-2">
+                      {getT(settings.locale).categorySortOrder}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {(
+                        [
+                          ['created_asc', getT(settings.locale).categorySortCreatedAsc],
+                          ['created_desc', getT(settings.locale).categorySortCreatedDesc],
+                          ['name_asc', getT(settings.locale).categorySortNameAsc],
+                          ['name_desc', getT(settings.locale).categorySortNameDesc],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          disabled={!selectedBoardId}
+                          onClick={async () => {
+                            if (!selectedBoardId) return;
+                            const v = value as CategorySortOrder;
+                            setBoards((prev) =>
+                              prev.map((b) =>
+                                b.id === selectedBoardId ? { ...b, category_sort_order: v } : b
+                              )
+                            );
+                            const { error } = await supabase
+                              .from('boards')
+                              .update({
+                                category_sort_order: v,
+                                updated_at: new Date().toISOString(),
+                              })
+                              .eq('id', selectedBoardId);
+                            if (error) {
+                              await refetchBoards();
+                              setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
+                            } else {
+                              await refetchBoards();
+                            }
+                          }}
+                          className={`w-full text-left py-1.5 px-2 rounded-md text-xs transition cursor-pointer ${
+                            effectiveSortOrder === value
+                              ? 'bg-accent/20 text-accent font-medium'
+                              : 'text-text-secondary hover:bg-white/10 hover:text-white'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
           </div>
         </div>
 
@@ -1463,146 +1838,197 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
           )}
           {!searchTerm && (
             <>
-              {/* Categories loading: dùng Toast thay vì text inline */}
-              {!categoriesLoading && categories.length === 0 && selectedBoardId && (
+              {!categoriesLoading && categories.length === 0 && selectedBoardId && !columnsLoading && boardColumns.length === 0 && (
+                <div className="text-text-muted text-xs py-6 text-center">
+                  <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
+                  <p>Đang tải cột…</p>
+                </div>
+              )}
+              {!categoriesLoading && categories.length === 0 && selectedBoardId && boardColumns.length > 0 && (
                 <div className="text-text-muted text-xs py-6 text-center">
                   <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
                   <p>Chưa có category. Tạo category hoặc thêm bookmark.</p>
                 </div>
               )}
-              <DndContext
-                sensors={categoryGridSensors}
-                collisionDetection={closestCenter}
-                onDragStart={(e: DragStartEvent) => {
-                  const cat = categories.find((c) => c.id === e.active.id);
-                  if (cat) setActiveDragCategory(cat as Category & { bookmarks: Bookmark[] });
-                }}
-                onDragEnd={(e) => {
-                  handleCategoryDragEndDnd(e);
-                  setActiveDragCategory(null);
-                }}
-              >
-                <SortableContext
-                  items={sortedCategoriesForGrid.map((x) => x.category.id)}
-                  strategy={rectSortingStrategy}
-                  disabled={!settings.dragDrop.category}
+              {boardColumns.length > 0 && (
+                <DndContext
+                  sensors={categoryGridSensors}
+                  collisionDetection={categoryCollisionDetection}
+                  onDragStart={(e: DragStartEvent) => {
+                    const cat = categories.find((c) => c.id === e.active.id);
+                    if (cat) setActiveDragCategory(cat as Category & { bookmarks: Bookmark[] });
+                    lastCategoryOverRef.current = null;
+                    setDropIndicator(null);
+                    setColumnDropIndicator(null);
+                  }}
+                  onDragOver={(e: DragOverEvent) => {
+                    if (e.over) lastCategoryOverRef.current = e.over;
+                    if (!e.over) {
+                      setDropIndicator((p) => (p === null ? p : null));
+                      setColumnDropIndicator((p) => (p === null ? p : null));
+                      return;
+                    }
+                    const overId = String(e.over.id);
+                    const pointerY = (e.activatorEvent as PointerEvent).clientY + e.delta.y;
+                    if (overId.startsWith(COLUMN_DROP_PREFIX)) {
+                      const columnId = overId.slice(COLUMN_DROP_PREFIX.length);
+                      const insertAtStart = pointerY < e.over.rect.top + e.over.rect.height / 2;
+                      setColumnDropIndicator((p) =>
+                        p?.columnId === columnId && p.insertAtStart === insertAtStart ? p : { columnId, insertAtStart }
+                      );
+                      setDropIndicator((p) => (p === null ? p : null));
+                    } else {
+                      const insertAbove = pointerY < e.over.rect.top + e.over.rect.height / 2;
+                      setDropIndicator((p) =>
+                        p?.overId === overId && p.insertAbove === insertAbove ? p : { overId, insertAbove }
+                      );
+                      setColumnDropIndicator((p) => (p === null ? p : null));
+                    }
+                  }}
+                  onDragEnd={(e: DragEndEvent) => {
+                    const over = e.over ?? lastCategoryOverRef.current;
+                    lastCategoryOverRef.current = null;
+                    handleCategoryDragEnd({ ...e, over });
+                    setDropIndicator(null);
+                    setColumnDropIndicator(null);
+                    setActiveDragCategory(null);
+                  }}
                 >
                   <div
-                    ref={categoryGridRef}
-                    className={`category-grid ${
-                      settings.categoryColumns === 2 ? 'category-grid-cols-2' :
-                      settings.categoryColumns === 3 ? 'category-grid-cols-3' :
-                      settings.categoryColumns === 5 ? 'category-grid-cols-5' :
-                      settings.categoryColumns === 6 ? 'category-grid-cols-6' :
-                      'category-grid-cols-4'
-                    }`}
-                  >
-                    {sortedCategoriesForGrid.map(({ category: cat, gridIndex }) => {
-                      const idx = FALLBACK_DOT_COLORS.length
-                        ? gridIndex % FALLBACK_DOT_COLORS.length
-                        : 0;
-                      return (
-                        <SortableCategoryCard
-                          key={cat.id}
-                          category={cat}
-                          activeCategoryId={null}
-                          fallbackDotColor={FALLBACK_DOT_COLORS[idx]}
+                        className={`category-grid ${
+                          numColumnsPreferred === 2 ? 'category-grid-cols-2' :
+                          numColumnsPreferred === 3 ? 'category-grid-cols-3' :
+                          numColumnsPreferred === 5 ? 'category-grid-cols-5' :
+                          numColumnsPreferred === 6 ? 'category-grid-cols-6' :
+                          'category-grid-cols-4'
+                        }`}
+                      >
+                        {boardColumns.map((col) => {
+                          const colCats = categoriesByColumn.get(col.id) ?? [];
+                          const showLineAtTop = false;
+                          const showLineAtBottom = false;
+                          return (
+                            <ColumnDroppable key={col.id} columnId={col.id} className="category-grid-item" isEmpty={colCats.length === 0}>
+                              <SortableContext
+                                items={colCats.map((c) => c.id)}
+                                strategy={verticalListSortingStrategy}
+                                disabled={!settings.dragDrop.category}
+                              >
+                                <div className="space-y-3">
+                                  {showLineAtTop && (
+                                    <div className={DROP_INDICATOR_BLOCK_CLASS} style={{ marginBottom: 4 }} aria-hidden />
+                                  )}
+                                  {colCats.map((cat, idx) => {
+                                    const dotIdx = idx % FALLBACK_DOT_COLORS.length;
+                                    return (
+                                      <SortableCategoryCard
+                                        key={cat.id}
+                                        category={cat}
+                                        activeCategoryId={activeCategoryId}
+                                        dropIndicator={dropIndicator}
+                                        fallbackDotColor={FALLBACK_DOT_COLORS[dotIdx]}
+                                    searchQuery={searchQuery}
+                                    onOpenBookmark={openBookmark}
+                                    cardHeight={settings.categoryCardHeight}
+                                    fillContent={settings.categoryColorFillContent}
+                                    categoryMenuId={categoryMenuId}
+                                    onOpenCategoryMenu={(id) =>
+                                      setCategoryMenuId((cur) => (cur === id ? null : id))
+                                    }
+                                    onEditCategory={() => {
+                                      setCategoryEditing(cat);
+                                      setCategoryMoveMode(false);
+                                      setCategoryModalOpen(true);
+                                      setCategoryMenuId(null);
+                                    }}
+                                    onMoveCategory={
+                                      boards.filter((b) => b.id !== cat.board_id).length > 0
+                                        ? () => {
+                                            setCategoryEditing(cat);
+                                            setCategoryMoveMode(true);
+                                            setCategoryModalOpen(true);
+                                            setCategoryMenuId(null);
+                                          }
+                                        : undefined
+                                    }
+                                    onDuplicateCategory={() => {
+                                      handleDuplicateCategory(cat);
+                                      setCategoryMenuId(null);
+                                    }}
+                                    onDeleteCategory={() => {
+                                      handleDeleteCategory(cat);
+                                      setCategoryMenuId(null);
+                                    }}
+                                    onAddBookmark={() => {
+                                      openAddBookmark(cat.id);
+                                      setCategoryMenuId(null);
+                                    }}
+                                    onEditBookmark={(b) => {
+                                      setBookmarkEditing(b);
+                                      setBookmarkModalOpen(true);
+                                      setCategoryMenuId(null);
+                                    }}
+                                    onDuplicateBookmark={handleDuplicateBookmark}
+                                    onMoveBookmark={(b) => setBookmarkToMove(b)}
+                                    onDeleteBookmark={handleDeleteBookmark}
+                                    dragDropBookmark={settings.dragDrop.bookmark}
+                                    draggedBookmark={draggedBookmark}
+                                    dropBookmarkTarget={dropBookmarkTarget}
+                                    onBookmarkDragStart={(e, bookmarkId) =>
+                                      handleBookmarkDragStart(e, bookmarkId, cat.id)
+                                    }
+                                    onBookmarkDragOver={(e, bookmarkId, index) =>
+                                      handleBookmarkDragOver(e, bookmarkId, cat.id, index)
+                                    }
+                                    onBookmarkDrop={handleBookmarkDrop}
+                                    onBookmarkDragEnd={handleBookmarkDragEnd}
+                                    disabled={!settings.dragDrop.category}
+                                  />
+                                );
+                              })}
+                                  {showLineAtBottom && (
+                                    <div className={DROP_INDICATOR_BLOCK_CLASS} style={{ marginTop: 4 }} aria-hidden />
+                                  )}
+                            </div>
+                          </SortableContext>
+                        </ColumnDroppable>
+                      );
+                    })}
+                  </div>
+                  <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }}>
+                    {activeDragCategory ? (
+                      <div className="category-grid-item drag-overlay-card">
+                        <CategoryCard
+                          category={activeDragCategory}
+                          fallbackDotColor={FALLBACK_DOT_COLORS[0]}
                           searchQuery={searchQuery}
                           onOpenBookmark={openBookmark}
                           cardHeight={settings.categoryCardHeight}
                           fillContent={settings.categoryColorFillContent}
-                          categoryMenuId={categoryMenuId}
-                          onOpenCategoryMenu={(id) =>
-                            setCategoryMenuId((cur) => (cur === id ? null : id))
-                          }
-                          onEditCategory={() => {
-                            setCategoryEditing(cat);
-                            setCategoryMoveMode(false);
-                            setCategoryModalOpen(true);
-                            setCategoryMenuId(null);
-                          }}
-                          onMoveCategory={
-                            boards.filter((b) => b.id !== cat.board_id).length > 0
-                              ? () => {
-                                  setCategoryEditing(cat);
-                                  setCategoryMoveMode(true);
-                                  setCategoryModalOpen(true);
-                                  setCategoryMenuId(null);
-                                }
-                              : undefined
-                          }
-                          onDuplicateCategory={() => {
-                            handleDuplicateCategory(cat);
-                            setCategoryMenuId(null);
-                          }}
-                          onDeleteCategory={() => {
-                            handleDeleteCategory(cat);
-                            setCategoryMenuId(null);
-                          }}
-                          onAddBookmark={() => {
-                            openAddBookmark(cat.id);
-                            setCategoryMenuId(null);
-                          }}
-                          onEditBookmark={(b) => {
-                            setBookmarkEditing(b);
-                            setBookmarkModalOpen(true);
-                            setCategoryMenuId(null);
-                          }}
-                          onDuplicateBookmark={handleDuplicateBookmark}
-                          onMoveBookmark={(b) => setBookmarkToMove(b)}
-                          onDeleteBookmark={handleDeleteBookmark}
-                          dragDropBookmark={settings.dragDrop.bookmark}
-                          draggedBookmark={draggedBookmark}
-                          dropBookmarkTarget={dropBookmarkTarget}
-                          onBookmarkDragStart={(e, bookmarkId) =>
-                            handleBookmarkDragStart(e, bookmarkId, cat.id)
-                          }
-                          onBookmarkDragOver={(e, bookmarkId, index) =>
-                            handleBookmarkDragOver(e, bookmarkId, cat.id, index)
-                          }
-                          onBookmarkDrop={handleBookmarkDrop}
-                          onBookmarkDragEnd={handleBookmarkDragEnd}
-                          disabled={!settings.dragDrop.category}
+                          categoryMenuId={null}
+                          onOpenCategoryMenu={() => {}}
+                          onEditCategory={() => {}}
+                          onDeleteCategory={() => {}}
+                          onAddBookmark={() => {}}
+                          onEditBookmark={() => {}}
+                          onDuplicateBookmark={() => {}}
+                          onMoveBookmark={() => {}}
+                          onDeleteBookmark={() => {}}
+                          dragDropCategory={false}
+                          sortableWrapper={false}
+                          dragDropBookmark={false}
+                          draggedBookmark={null}
+                          dropBookmarkTarget={null}
+                          onBookmarkDragStart={() => {}}
+                          onBookmarkDragOver={() => {}}
+                          onBookmarkDrop={() => {}}
+                          onBookmarkDragEnd={() => {}}
                         />
-                      );
-                    })}
-                  </div>
-                </SortableContext>
-                <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
-                  {activeDragCategory ? (
-                    <div className="category-grid-item opacity-90 shadow-xl">
-                      <CategoryCard
-                        category={activeDragCategory}
-                        fallbackDotColor={FALLBACK_DOT_COLORS[
-                          (sortedCategoriesForGrid.find((x) => x.category.id === activeDragCategory.id)?.gridIndex ?? 0) % FALLBACK_DOT_COLORS.length
-                        ]}
-                        searchQuery={searchQuery}
-                        onOpenBookmark={openBookmark}
-                        cardHeight={settings.categoryCardHeight}
-                        fillContent={settings.categoryColorFillContent}
-                        categoryMenuId={null}
-                        onOpenCategoryMenu={() => {}}
-                        onEditCategory={() => {}}
-                        onDeleteCategory={() => {}}
-                        onAddBookmark={() => {}}
-                        onEditBookmark={() => {}}
-                        onDuplicateBookmark={() => {}}
-                        onMoveBookmark={() => {}}
-                        onDeleteBookmark={() => {}}
-                        dragDropCategory={false}
-                        sortableWrapper={false}
-                        dragDropBookmark={false}
-                        draggedBookmark={null}
-                        dropBookmarkTarget={null}
-                        onBookmarkDragStart={() => {}}
-                        onBookmarkDragOver={() => {}}
-                        onBookmarkDrop={() => {}}
-                        onBookmarkDragEnd={() => {}}
-                      />
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+              )}
             </>
           )}
         </div>
@@ -1625,6 +2051,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
       <BoardModal
         open={boardModalOpen}
         editBoard={boardEditing}
+        defaultCategoryColumns={settings.categoryColumns}
         onClose={() => { setBoardModalOpen(false); setBoardEditing(null); }}
         onSave={handleSaveBoard}
       />
@@ -1898,6 +2325,7 @@ function CategoryCard({
   onBookmarkDragOver,
   onBookmarkDrop,
   onBookmarkDragEnd,
+  dragHandleProps,
 }: {
   category: Category & { bookmarks: Bookmark[] };
   fallbackDotColor: string;
@@ -1926,6 +2354,12 @@ function CategoryCard({
   onBookmarkDrop?: (e: React.DragEvent) => void;
   onBookmarkDragEnd?: () => void;
   fillContent: boolean;
+  /** When set, only this header is the drag handle (use header height for grab) */
+  dragHandleProps?: {
+    setActivatorNodeRef: (el: HTMLElement | null) => void;
+    attributes: Record<string, unknown>;
+    listeners: Record<string, unknown> | undefined;
+  };
 }) {
   const settings = useSettings();
   const { id, name, color, icon, bookmarks } = category;
@@ -1950,11 +2384,11 @@ function CategoryCard({
     setCategoryMenuPosition({ top, left: tr.right - 180 });
   }, [menuOpen]);
   return (
-<div
+    <div
         data-category-menu
         className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group hover:border-white/10 transition-all duration-200 min-w-0 ${
           cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
-        } ${(dragDropCategory || sortableWrapper) ? 'cursor-grab active:cursor-grabbing' : ''} ${
+        } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
           isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
         } ${menuOpen ? 'z-[999]' : ''}`}
       style={
@@ -1970,7 +2404,12 @@ function CategoryCard({
         className="px-2.5 py-0 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"
         style={color ? { backgroundColor: color } : undefined}
       >
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div
+          ref={dragHandleProps?.setActivatorNodeRef}
+          className={`flex items-center gap-1.5 min-w-0 flex-1 ${dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          {...(dragHandleProps?.attributes ?? {})}
+          {...(dragHandleProps?.listeners ?? {})}
+        >
           {icon ? (
             <span className="material-symbols-outlined text-[16px] text-white flex-shrink-0">{icon}</span>
           ) : (

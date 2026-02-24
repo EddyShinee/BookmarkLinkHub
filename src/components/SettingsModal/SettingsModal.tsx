@@ -244,6 +244,43 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                   ))}
                 </div>
               </SettingCard>
+              <SettingCard>
+                <SettingLabel>{t.categorySortOrder}</SettingLabel>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_asc')}`}
+                    >
+                      {t.categorySortCreatedAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_desc')}`}
+                    >
+                      {t.categorySortCreatedDesc}
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_asc')}`}
+                    >
+                      {t.categorySortNameAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_desc')}`}
+                    >
+                      {t.categorySortNameDesc}
+                    </button>
+                  </div>
+                </div>
+              </SettingCard>
             </div>
 
             {/* Cột 3: Bố cục & Màu category & Mở link */}

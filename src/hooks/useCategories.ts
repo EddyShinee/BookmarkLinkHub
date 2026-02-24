@@ -19,7 +19,8 @@ export function useCategories(boardId: string | null) {
         .from('categories')
         .select('*')
         .eq('board_id', boardId)
-        .order('sort_order', { ascending: true });
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
       if (e1) throw e1;
       const list = (cats ?? []) as Category[];
       if (list.length === 0) {
