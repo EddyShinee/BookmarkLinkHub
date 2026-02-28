@@ -74,7 +74,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
 
         <div className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Cột 1: Ngôn ngữ & Giao diện */}
+            {/* Cột 1: Ngôn ngữ, Trang bắt đầu & Giao diện */}
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.language}</SettingLabel>
@@ -92,6 +92,26 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                     className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.locale === 'en')}`}
                   >
                     {t.english}
+                  </button>
+                </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.startPage}</SettingLabel>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => s.setStartOnLanding(true)}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.startOnLanding)}`}
+                  >
+                    {t.startPageLanding}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => s.setStartOnLanding(false)}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(!s.startOnLanding)}`}
+                  >
+                    {t.startPageBookmarks}
                   </button>
                 </div>
               </SettingCard>
@@ -117,6 +137,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                   </button>
                 </div>
               </SettingCard>
+
 
               <SettingCard>
                 <SettingLabel>Supabase</SettingLabel>

@@ -4,6 +4,7 @@ export const SETTINGS_STORAGE_KEY = 'linkhub_settings';
 export type Locale = 'vi' | 'en';
 export type Theme = 'dark' | 'light';
 export type CategoryCardHeight = 'auto' | 'equal';
+export type TimeFormat = '12' | '24';
 export type OpenLinkIn = 'new_tab' | 'current_tab';
 
 /** Sắp xếp category: theo ngày tạo (tăng/giảm) hoặc theo tên (A-Z / Z-A) */
@@ -24,10 +25,18 @@ export interface AppSettings {
   backgroundMode: 'color' | 'image';
   backgroundImageUrl: string | null;
   backgroundOverlayOpacity: number; // 0-100
+  landingBackgroundColor?: string | null;
+  landingBackgroundMode?: 'color' | 'image';
+  landingBackgroundImageUrl?: string | null;
+  landingBackgroundOverlayOpacity?: number | null;
   categoryCardHeight: CategoryCardHeight;
   openLinkIn: OpenLinkIn;
   dragDrop: DragDropSettings;
   categoryColorFillContent: boolean;
+  startOnLanding: boolean;
+  timeFormat: TimeFormat;
+  showLandingPomodoro?: boolean;
+  showLandingTodos?: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -47,6 +56,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     bookmark: true,
   },
   categoryColorFillContent: false,
+  startOnLanding: true,
+  timeFormat: '24',
+  showLandingPomodoro: true,
+  showLandingTodos: true,
 };
 
 export const BACKGROUND_COLORS = [

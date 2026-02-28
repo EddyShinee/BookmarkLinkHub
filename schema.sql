@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     avatar_url TEXT,
     locale TEXT DEFAULT 'vi' CHECK (locale IN ('vi', 'en')),
     background_color TEXT DEFAULT '#0F172A',
+    start_on_landing BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -69,6 +70,40 @@ CREATE POLICY "Users can update own boards"
 
 CREATE POLICY "Users can delete own boards"
     ON public.boards FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- LANDING TODOS TABLE
+-- Simple per-user todo list for landing page
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.landing_todos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    done BOOLEAN NOT NULL DEFAULT FALSE,
+    priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS landing_todos_user_id_idx ON public.landing_todos(user_id);
+
+ALTER TABLE public.landing_todos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own landing todos"
+    ON public.landing_todos FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can modify own landing todos"
+    ON public.landing_todos FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own landing todos"
+    ON public.landing_todos FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own landing todos"
+    ON public.landing_todos FOR DELETE
     USING (auth.uid() = user_id);
 
 -- ============================================

@@ -9,6 +9,7 @@ import {
   type OpenLinkIn,
   type DragDropSettings,
   type CategorySortOrder,
+  type TimeFormat,
 } from '../lib/settings';
 
 interface SettingsContextValue extends AppSettings {
@@ -23,7 +24,11 @@ interface SettingsContextValue extends AppSettings {
   setCategoryCardHeight: (v: CategoryCardHeight) => void;
   setOpenLinkIn: (v: OpenLinkIn) => void;
   setDragDrop: (v: Partial<DragDropSettings>) => void;
-   setCategoryColorFillContent: (v: boolean) => void;
+  setCategoryColorFillContent: (v: boolean) => void;
+  setStartOnLanding: (v: boolean) => void;
+  setTimeFormat: (v: TimeFormat) => void;
+  setShowLandingPomodoro: (v: boolean) => void;
+  setShowLandingTodos: (v: boolean) => void;
   persist: () => void;
 }
 
@@ -79,6 +84,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setOpenLinkIn: (v) => update({ openLinkIn: v }),
     setDragDrop: (v) => update({ dragDrop: { ...settings.dragDrop, ...v } }),
     setCategoryColorFillContent: (v) => update({ categoryColorFillContent: v }),
+    setStartOnLanding: (v) => update({ startOnLanding: v }),
+    setTimeFormat: (v) => update({ timeFormat: v }),
+    setShowLandingPomodoro: (v) => update({ showLandingPomodoro: v }),
+    setShowLandingTodos: (v) => update({ showLandingTodos: v }),
     persist: () => persist(settings),
   };
 

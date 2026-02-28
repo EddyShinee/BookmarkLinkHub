@@ -171,7 +171,7 @@ export default function SearchSpotlightModal({
             className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder-text-muted"
           />
           <span className="hidden md:inline-flex items-center gap-1 rounded-md border border-white/15 px-1.5 py-0.5 text-[10px] text-text-muted">
-            <span className="text-[10px]">Ctrl</span>
+            <span className="text-[10px]">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘' : 'Ctrl'}</span>
             <span>+</span>
             <span className="text-[10px]">K</span>
           </span>

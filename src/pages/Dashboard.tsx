@@ -213,9 +213,15 @@ interface DashboardProps {
   initialAddBookmark?: { url: string; title: string };
   initialOpenAuthenticator?: boolean;
   initialOpenItTools?: boolean;
+  initialOpenSettings?: boolean;
 }
 
-export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator, initialOpenItTools }: DashboardProps) {
+export default function Dashboard({
+  initialAddBookmark,
+  initialOpenAuthenticator,
+  initialOpenItTools,
+  initialOpenSettings,
+}: DashboardProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { boards, setBoards, loading: boardsLoading, error: boardsError, refetch: refetchBoards } = useBookmarks(user?.id);
@@ -230,7 +236,7 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
   const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([]);
   const [searchDataLoading, setSearchDataLoading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(!!initialAddBookmark);
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(!!initialOpenSettings);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   /** Last droppable "over" during category drag; used when DragEnd fires with over=null */
@@ -280,7 +286,17 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
 
   const [activeDragCategory, setActiveDragCategory] = useState<Category & { bookmarks: Bookmark[] } | null>(null);
 
-  // Toast Loading cho các trạng thái loading khác
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault();
+        window.location.hash = '#/landing';
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
   useEffect(() => {
     const tLoc = getT(settings.locale);
     if (boardsLoading) {
@@ -1405,14 +1421,22 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
                 }`}
               >
                 <span className="truncate">{board.name}</span>
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => { e.stopPropagation(); setBoardMenuId((id) => (id === board.id ? null : board.id)); }}
-                  className={`p-1 rounded flex-shrink-0 ${settings.theme === 'light' ? 'sidebar-item-hover' : 'hover:bg-white/10'}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setBoardMenuId((id) => (id === board.id ? null : board.id));
+                    }
+                  }}
+                  className={`p-1 rounded flex-shrink-0 cursor-pointer ${settings.theme === 'light' ? 'sidebar-item-hover' : 'hover:bg-white/10'}`}
                   aria-label="Menu"
                 >
                   <span className="material-icons-round text-[14px] opacity-60">more_horiz</span>
-                </button>
+                </div>
               </button>
               {boardMenuId === board.id && (
                 <div
@@ -1502,51 +1526,62 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
               />
             </div>
           </div>
-          <div className="relative flex items-center gap-1.5 ml-2 md:ml-4" ref={userMenuRef}>
+          <div className="flex items-center gap-2 ml-2 md:ml-4">
             <button
-              ref={userTriggerRef}
               type="button"
-              onClick={() => setUserMenuOpen((o) => !o)}
-              className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg transition bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10"
+              onClick={() => (window.location.hash = '#/landing')}
+              className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-100 hover:bg-white/10"
             >
-              <div className="h-7 w-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-semibold text-xs ring-1 ring-white/10">
-                {user?.email?.slice(0, 1).toUpperCase() ?? '?'}
-              </div>
-              <div className="flex flex-col items-start max-w-[120px]">
-                <span className="text-xs font-medium text-white leading-tight truncate w-full">
-                  {user?.user_metadata?.full_name ?? user?.email ?? 'User'}
-                </span>
-                <span className="text-[11px] text-text-muted leading-tight">Member</span>
-              </div>
-              <span className={`material-icons-round text-text-muted text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
+              <span className="material-symbols-outlined text-[14px]">home</span>
+              <span>{getT(settings.locale).landingGoBackToLanding}</span>
+              <span className="ml-1 rounded border border-white/20 px-1 py-0.5 text-[9px] font-medium opacity-60">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}</span>
             </button>
-            {userMenuOpen && (
-              <div
-                ref={userDropdownRef}
-                className={`absolute right-0 w-48 rounded-lg border border-white/10 bg-sidebar shadow-xl shadow-black/40 py-1 z-[110] overflow-hidden ${openUserMenuAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
+            <div className="relative flex items-center gap-1.5" ref={userMenuRef}>
+              <button
+                ref={userTriggerRef}
+                type="button"
+                onClick={() => setUserMenuOpen((o) => !o)}
+                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg transition bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10"
               >
-                <div className="px-3 py-2 border-b border-white/10">
-                  <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{getT(settings.locale).signedInAs}</p>
-                  <p className="text-xs font-medium text-white truncate mt-0.5">{user?.email}</p>
+                <div className="h-7 w-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-semibold text-xs ring-1 ring-white/10">
+                  {user?.email?.slice(0, 1).toUpperCase() ?? '?'}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setSettingsModalOpen(true); setUserMenuOpen(false); }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white transition"
+                <div className="flex flex-col items-start max-w-[120px]">
+                  <span className="text-xs font-medium text-white leading-tight truncate w-full">
+                    {user?.user_metadata?.full_name ?? user?.email ?? 'User'}
+                  </span>
+                  <span className="text-[11px] text-text-muted leading-tight">Member</span>
+                </div>
+                <span className={`material-icons-round text-text-muted text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
+              </button>
+              {userMenuOpen && (
+                <div
+                  ref={userDropdownRef}
+                  className={`absolute right-0 w-48 rounded-lg border border-white/10 bg-sidebar shadow-xl shadow-black/40 py-1 z-[110] overflow-hidden ${openUserMenuAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
                 >
-                  <span className="material-symbols-outlined text-base text-accent">settings</span>
-                  {getT(settings.locale).settings}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { handleSignOut(); setUserMenuOpen(false); }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-red-500/20 hover:text-red-400 transition"
-                >
+                  <div className="px-3 py-2 border-b border-white/10">
+                    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{getT(settings.locale).signedInAs}</p>
+                    <p className="text-xs font-medium text-white truncate mt-0.5">{user?.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSettingsModalOpen(true); setUserMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white transition"
+                  >
+                    <span className="material-symbols-outlined text-base text-accent">settings</span>
+                    {getT(settings.locale).settings}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { handleSignOut(); setUserMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-red-500/20 hover:text-red-400 transition"
+                  >
                   <span className="material-symbols-outlined text-base">logout</span>
-                  {getT(settings.locale).logOut}
-                </button>
-              </div>
-            )}
+                    {getT(settings.locale).logOut}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1841,13 +1876,13 @@ export default function Dashboard({ initialAddBookmark, initialOpenAuthenticator
               {!categoriesLoading && categories.length === 0 && selectedBoardId && !columnsLoading && boardColumns.length === 0 && (
                 <div className="text-text-muted text-xs py-6 text-center">
                   <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
-                  <p>Đang tải cột…</p>
+                  <p>{getT(settings.locale).loadingColumns}</p>
                 </div>
               )}
               {!categoriesLoading && categories.length === 0 && selectedBoardId && boardColumns.length > 0 && (
                 <div className="text-text-muted text-xs py-6 text-center">
                   <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
-                  <p>Chưa có category. Tạo category hoặc thêm bookmark.</p>
+                  <p>{getT(settings.locale).noCategoriesDashboard}</p>
                 </div>
               )}
               {boardColumns.length > 0 && (
@@ -2385,12 +2420,12 @@ function CategoryCard({
   }, [menuOpen]);
   return (
     <div
-        data-category-menu
-        className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group hover:border-white/10 transition-all duration-200 min-w-0 ${
-          cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
-        } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
-          isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
-        } ${menuOpen ? 'z-[999]' : ''}`}
+      data-category-menu
+      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group hover:border-white/10 transition-all duration-200 min-w-0 ${
+        cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
+      } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
+        isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
+      } ${menuOpen ? 'z-[999]' : ''}`}
       style={
         color && fillContent
           ? {

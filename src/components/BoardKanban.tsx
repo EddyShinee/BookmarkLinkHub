@@ -3,6 +3,8 @@ import { useBoardColumns } from '../hooks/useBoardColumns';
 import { useCards } from '../hooks/useCards';
 import { useCategories } from '../hooks/useCategories';
 import { supabase } from '../lib/supabaseClient';
+import { useSettings } from '../contexts/SettingsContext';
+import { getT } from '../lib/i18n';
 
 interface BoardKanbanProps {
   boardId: string | null;
@@ -11,6 +13,8 @@ interface BoardKanbanProps {
 // Simple, read‑only Kanban view (no drag yet).
 // Columns & cards are backed by board_columns + cards tables.
 export default function BoardKanban({ boardId }: BoardKanbanProps) {
+  const settings = useSettings();
+  const t = getT(settings.locale);
   const { columns, loading: colsLoading, error: colsError, refetch: refetchColumns } =
     useBoardColumns(boardId);
   const { cards, loading: cardsLoading, error: cardsError, refetch: refetchCards } =
@@ -77,7 +81,7 @@ export default function BoardKanban({ boardId }: BoardKanbanProps) {
   }
 
   if (colsLoading || cardsLoading) {
-    return <p className="text-xs text-text-muted py-4">Đang tải Kanban...</p>;
+    return <p className="text-xs text-text-muted py-4">{t.loadingKanban}</p>;
   }
 
   return (

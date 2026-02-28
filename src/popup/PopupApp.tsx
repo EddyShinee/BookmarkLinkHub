@@ -12,7 +12,7 @@ import type { Bookmark } from '../hooks/useBookmarks';
 const NEWTAB_PATH = 'src/newtab/index.html';
 const TOTP_STEP = 30;
 
-type TabId = 'authenticator' | 'bookmarks' | 'it-tools';
+type TabId = 'authenticator' | 'bookmarks' | 'settings';
 
 export default function PopupApp() {
   const { session, loading: authLoading } = useAuth();
@@ -21,6 +21,9 @@ export default function PopupApp() {
   const userId = session?.user?.id;
 
   const [activeTab, setActiveTab] = useState<TabId>('authenticator');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   const openNewTab = useCallback((query?: string) => {
     const url = query
@@ -40,63 +43,101 @@ export default function PopupApp() {
   }, [openNewTab]);
 
   const openOptions = useCallback(() => {
+    // Legacy: open full-page options if needed
     chrome.runtime.openOptionsPage?.();
   }, []);
 
   if (authLoading) {
     const t = getT(settings.locale);
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#151b28]">
+      <div
+        className={`w-full h-full flex items-center justify-center ${
+          settings.theme === 'light' ? 'bg-white' : 'bg-[#151b28]'
+        }`}
+      >
         <Toast message={t.loadingAuth} type="info" open={true} onClose={() => {}} />
       </div>
     );
   }
 
+  const isLight = settings.theme === 'light';
+
   return (
-    <div className="w-[360px] h-[500px] bg-[#151b28] rounded-xl shadow-2xl border border-white/5 overflow-hidden flex flex-col font-display">
-      <header className="flex items-center justify-between px-4 py-3 bg-[#151b28]/95 backdrop-blur-sm border-b border-white/5 z-20 shrink-0">
+    <div
+      className={`w-[360px] h-[500px] rounded-xl shadow-2xl border overflow-hidden flex flex-col font-display ${
+        isLight ? 'bg-white border-slate-200' : 'bg-[#151b28] border-white/5'
+      }`}
+    >
+      <header
+        className={`flex items-center justify-between px-4 py-3 backdrop-blur-sm border-b z-20 shrink-0 ${
+          isLight ? 'bg-white/90 border-slate-200' : 'bg-[#151b28]/95 border-white/5'
+        }`}
+      >
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-[#256af4] rounded-lg flex items-center justify-center shadow-lg shadow-blue-900/20">
             <span className="material-symbols-outlined text-white text-[18px]">hub</span>
           </div>
-          <h1 className="text-white text-base font-bold tracking-tight">LinkHub</h1>
+          <h1
+            className={`text-base font-bold tracking-tight ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}
+          >
+            LinkHub
+          </h1>
         </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => openNewTab()}
-            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-all"
-            aria-label={t.settings}
+            onClick={() => {
+              setShowSettings(false);
+              setActiveTab('bookmarks');
+              setSearchOpen((prev) => {
+                const next = !prev;
+                if (!next) setSearchQuery('');
+                return next;
+              });
+            }}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+              isLight
+                ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+            aria-label={t.loadingSearch}
           >
             <span className="material-symbols-outlined text-[20px]">search</span>
-          </button>
-          <button
-            type="button"
-            onClick={openOptions}
-            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-all"
-            aria-label={t.settings}
-          >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
           </button>
         </div>
       </header>
 
-      <nav className="flex items-center bg-[#151b28] border-b border-white/5 z-10 shrink-0">
+      <nav
+        className={`flex items-center border-b z-10 shrink-0 ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#151b28] border-white/5'
+        }`}
+      >
         {(
           [
             { id: 'authenticator' as TabId, icon: 'lock', label: 'Authenticator' },
             { id: 'bookmarks' as TabId, icon: 'bookmarks', label: 'Bookmarks' },
-            { id: 'it-tools' as TabId, icon: 'terminal', label: 'IT Tools' },
+            { id: 'settings' as TabId, icon: 'settings', label: t.settings },
           ] as const
         ).map((tab) => (
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setShowSettings(false);
+              setSearchOpen(false);
+              setSearchQuery('');
+              setActiveTab(tab.id);
+            }}
             className={`flex-1 py-2.5 flex flex-col items-center justify-center gap-0.5 transition-colors group relative ${
               activeTab === tab.id
-                ? 'text-[#256af4] bg-white/[0.02]'
-                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                ? isLight
+                  ? 'text-[#256af4] bg-slate-100/80'
+                  : 'text-[#256af4] bg-white/[0.02]'
+                : isLight
+                  ? 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
             }`}
           >
             <span
@@ -114,22 +155,29 @@ export default function PopupApp() {
         ))}
       </nav>
 
-      <main className="flex-1 overflow-y-auto px-2 pt-2 pb-20 relative min-h-0">
-        {activeTab === 'authenticator' && (
-          <PopupAuthenticatorTab userId={userId} openNewTab={openNewTab} t={t} />
-        )}
-        {activeTab === 'bookmarks' && (
-          <PopupBookmarksTab
-            userId={userId}
-            openNewTab={openNewTab}
-            addCurrentPage={addCurrentPage}
-            t={t}
-          />
-        )}
-        {activeTab === 'it-tools' && (
-          <PopupITToolsTab openNewTab={openNewTab} t={t} />
-        )}
-      </main>
+      {showSettings ? (
+        <main className="flex-1 overflow-y-auto px-3 pt-3 pb-4">
+          <PopupSettingsColumn />
+        </main>
+      ) : (
+        <main className="flex-1 overflow-y-auto px-2 pt-2 pb-20 relative min-h-0">
+          {activeTab === 'authenticator' && (
+            <PopupAuthenticatorTab userId={userId} openNewTab={openNewTab} t={t} />
+          )}
+          {activeTab === 'bookmarks' && (
+            <PopupBookmarksTab
+              userId={userId}
+              openNewTab={openNewTab}
+              addCurrentPage={addCurrentPage}
+              t={t}
+              searchOpen={searchOpen}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+            />
+          )}
+          {activeTab === 'settings' && <PopupSettingsColumn />}
+        </main>
+      )}
     </div>
   );
 }
@@ -139,11 +187,17 @@ function PopupBookmarksTab({
   openNewTab,
   addCurrentPage,
   t,
+  searchOpen,
+  searchQuery,
+  setSearchQuery,
 }: {
   userId: string | undefined;
   openNewTab: (q?: string) => void;
   addCurrentPage: () => void;
   t: ReturnType<typeof getT>;
+  searchOpen: boolean;
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
 }) {
   const { boards, loading } = useBookmarks(userId);
   const [selectedBoardId, setSelectedBoardId] = React.useState<string | null>(null);
@@ -179,40 +233,130 @@ function PopupBookmarksTab({
   if (!userId) {
     return (
       <div className="py-6 px-3 text-center">
-        <p className="text-[#90a4cb] text-sm mb-4">Đăng nhập để xem bookmark.</p>
+        <p className="text-[#90a4cb] text-sm mb-4">{t.loginToSeeBookmarks}</p>
         <button
           type="button"
           onClick={() => openNewTab()}
           className="py-2 px-4 rounded-lg bg-[#256af4] text-white text-sm font-medium hover:bg-blue-600"
         >
-          Mở LinkHub
+          {t.openLinkHub}
         </button>
       </div>
     );
   }
 
+  const allBookmarks: Array<Bookmark & { categoryName: string }> = categories.flatMap((cat) =>
+    (cat.bookmarks ?? []).map((b) => ({
+      ...b,
+      categoryName: cat.name ?? '',
+    }))
+  );
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredBookmarks = !normalizedQuery
+    ? allBookmarks
+    : allBookmarks.filter((b) => {
+        const title = (b.title ?? '').toLowerCase();
+        const url = (b.url ?? '').toLowerCase();
+        const host = (() => {
+          try {
+            return new URL(b.url).hostname.toLowerCase();
+          } catch {
+            return '';
+          }
+        })();
+        return (
+          title.includes(normalizedQuery) ||
+          url.includes(normalizedQuery) ||
+          host.includes(normalizedQuery)
+        );
+      });
+
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 px-1 pb-2">
-        <button
-          type="button"
-          onClick={() => openNewTab()}
-          className="flex-1 py-2 px-3 rounded-lg bg-[#256af4] text-white text-xs font-medium hover:bg-blue-600 shadow-[0_0_20px_-5px_rgba(37,106,244,0.5)]"
-        >
-          Mở trang Dấu trang
-        </button>
-        <button
-          type="button"
-          onClick={addCurrentPage}
-          className="flex-1 py-2 px-3 rounded-lg border border-white/10 text-[#90a4cb] text-xs font-medium hover:bg-white/5 hover:text-white"
-        >
-          Thêm trang này
-        </button>
-      </div>
+      {!searchOpen && (
+        <div className="flex gap-2 px-1 pb-2">
+          <button
+            type="button"
+            onClick={() => openNewTab()}
+            className="flex-1 py-2 px-3 rounded-lg bg-[#256af4] text-white text-xs font-medium hover:bg-blue-600 shadow-[0_0_20px_-5px_rgba(37,106,244,0.5)]"
+          >
+            {t.openBookmarksPage}
+          </button>
+          <button
+            type="button"
+            onClick={addCurrentPage}
+            className="flex-1 py-2 px-3 rounded-lg border border-white/10 text-[#90a4cb] text-xs font-medium hover:bg-white/5 hover:text-white"
+          >
+            {t.addThisPage}
+          </button>
+        </div>
+      )}
+
+      {searchOpen && (
+        <div className="px-1 pb-2">
+          <div className="flex items-center gap-2 bg-[#0f172a] border border-white/10 rounded-lg px-2 py-1.5">
+            <span className="material-symbols-outlined text-[18px] text-[#64748b]">search</span>
+            <input
+              type="text"
+              autoFocus
+              placeholder={t.moveBookmarkSearchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent text-xs text-white placeholder:text-[#64748b] outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-[#64748b] hover:text-slate-200 text-[16px]"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading || catLoading ? (
-        <p className="text-[#90a4cb] text-sm py-4">Đang tải...</p>
+        <p className="text-[#90a4cb] text-sm py-4">{t.popupLoading}</p>
       ) : categories.length === 0 ? (
-        <p className="text-[#90a4cb] text-sm py-4">Chưa có category. Mở LinkHub để thêm.</p>
+        <p className="text-[#90a4cb] text-sm py-4">{t.popupNoCategories}</p>
+      ) : searchOpen ? (
+        <div className="space-y-1.5 px-1 pb-2">
+          {filteredBookmarks.length === 0 ? (
+            <p className="text-[#64748b] text-xs py-3 text-center">{t.moveBookmarkNoResults}</p>
+          ) : (
+            filteredBookmarks.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  chrome.tabs.create({ url: b.url });
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[#1e2532] transition-colors border border-transparent hover:border-white/5 text-left"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="text-white font-semibold text-sm truncate block">
+                    {b.title || 'Untitled'}
+                  </span>
+                  <span className="text-[#90a4cb] text-[11px] truncate block">
+                    {(() => {
+                      try {
+                        return new URL(b.url).hostname;
+                      } catch {
+                        return b.url;
+                      }
+                    })()}
+                  </span>
+                </div>
+                <span className="text-[10px] text-[#64748b] uppercase tracking-wide truncate max-w-[80px]">
+                  {b.categoryName || 'Category'}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           {categories.map((cat) => (
@@ -224,7 +368,7 @@ function PopupBookmarksTab({
                 </h3>
               </div>
               {(cat.bookmarks ?? []).length === 0 ? (
-                <p className="text-[#64748b] text-[11px] px-3 py-1">Trống</p>
+                <p className="text-[#64748b] text-[11px] px-3 py-1">{t.emptyState}</p>
               ) : (
                 <div className="space-y-0.5">
                   {(cat.bookmarks ?? []).map((b) => (
@@ -240,10 +384,16 @@ function PopupBookmarksTab({
                       }}
                     >
                       <div className="min-w-0 flex-1">
-                        <span className="text-white font-semibold text-sm truncate block">{b.title || 'Untitled'}</span>
-                        <span className="text-[#90a4cb] text-[11px] truncate block">{new URL(b.url).hostname}</span>
+                        <span className="text-white font-semibold text-sm truncate block">
+                          {b.title || 'Untitled'}
+                        </span>
+                        <span className="text-[#90a4cb] text-[11px] truncate block">
+                          {new URL(b.url).hostname}
+                        </span>
                       </div>
-                      <span className="material-symbols-outlined text-[18px] text-gray-500 group-hover:text-[#256af4]">open_in_new</span>
+                      <span className="material-symbols-outlined text-[18px] text-gray-500 group-hover:text-[#256af4]">
+                        open_in_new
+                      </span>
                     </a>
                   ))}
                 </div>
@@ -256,23 +406,256 @@ function PopupBookmarksTab({
   );
 }
 
-function PopupITToolsTab({
-  openNewTab,
-  t,
-}: {
-  openNewTab: (q?: string) => void;
-  t: ReturnType<typeof getT>;
-}) {
+function PopupSettingsColumn() {
+  const s = useSettings();
+  const t = getT(s.locale);
+
+  const toggleBtn = (active: boolean) =>
+    active
+      ? 'bg-[#256af4] text-white shadow-[0_0_12px_rgba(37,106,244,0.6)]'
+      : 'bg-white/5 text-[#cbd5f5] hover:bg-white/10';
+
   return (
-    <div className="py-6 px-3 text-center">
-      <p className="text-[#90a4cb] text-sm mb-4">Mở trang LinkHub để sử dụng IT Tools (JSON, Base64, Hash, ...).</p>
-      <button
-        type="button"
-        onClick={() => openNewTab('?open=it-tools')}
-        className="py-2.5 px-5 rounded-lg bg-[#256af4] text-white text-sm font-medium hover:bg-blue-600 shadow-[0_0_20px_-5px_rgba(37,106,244,0.5)]"
-      >
-        Mở IT Tools
-      </button>
+    <div className="space-y-3 text-xs text-white">
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.language}
+        </p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => s.setLocale('vi')}
+            className={`flex-1 py-1.5 rounded-lg font-medium ${toggleBtn(s.locale === 'vi')}`}
+          >
+            {t.vietnamese}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setLocale('en')}
+            className={`flex-1 py-1.5 rounded-lg font-medium ${toggleBtn(s.locale === 'en')}`}
+          >
+            {t.english}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.categoryColumns}
+        </p>
+        <div className="flex gap-1.5 flex-wrap">
+          {([2, 3, 4, 5, 6] as const).map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => s.setCategoryColumns(n)}
+              className={`w-8 h-8 rounded-lg text-xs font-medium ${toggleBtn(s.categoryColumns === n)}`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.categorySortOrder}
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => s.setCategorySortOrder('created_asc')}
+              className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-[11px] font-medium ${toggleBtn(
+                s.categorySortOrder === 'created_asc'
+              )}`}
+            >
+              {t.categorySortCreatedAsc}
+            </button>
+            <button
+              type="button"
+              onClick={() => s.setCategorySortOrder('created_desc')}
+              className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-[11px] font-medium ${toggleBtn(
+                s.categorySortOrder === 'created_desc'
+              )}`}
+            >
+              {t.categorySortCreatedDesc}
+            </button>
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => s.setCategorySortOrder('name_asc')}
+              className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-[11px] font-medium ${toggleBtn(
+                s.categorySortOrder === 'name_asc'
+              )}`}
+            >
+              {t.categorySortNameAsc}
+            </button>
+            <button
+              type="button"
+              onClick={() => s.setCategorySortOrder('name_desc')}
+              className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-[11px] font-medium ${toggleBtn(
+                s.categorySortOrder === 'name_desc'
+              )}`}
+            >
+              {t.categorySortNameDesc}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.categoryCardHeight}
+        </p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => s.setCategoryCardHeight('auto')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-[11px] font-medium ${toggleBtn(
+              s.categoryCardHeight === 'auto'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">vertical_align_top</span>
+            {t.byContent}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setCategoryCardHeight('equal')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-[11px] font-medium ${toggleBtn(
+              s.categoryCardHeight === 'equal'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">height</span>
+            {t.equalHeight}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+            {t.categoryColorFillContent}
+          </span>
+          <button
+            type="button"
+            onClick={() => s.setCategoryColorFillContent(!s.categoryColorFillContent)}
+            className={`min-w-[60px] px-3 py-1 rounded-full text-[11px] font-medium transition ${
+              s.categoryColorFillContent
+                ? 'bg-[#256af4]/20 text-[#bfdbfe] border border-[#256af4]/40'
+                : 'bg-white/10 text-[#cbd5f5] hover:bg-white/15 border border-white/10'
+            }`}
+          >
+            {s.categoryColorFillContent ? t.on : t.off}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.openLink}
+        </p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => s.setOpenLinkIn('new_tab')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-[11px] font-medium ${toggleBtn(
+              s.openLinkIn === 'new_tab'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">tab</span>
+            {t.newTab}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setOpenLinkIn('current_tab')}
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-[11px] font-medium ${toggleBtn(
+              s.openLinkIn === 'current_tab'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+            {t.currentTab}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.dragDrop}
+        </p>
+        <div className="space-y-1.5">
+          {(
+            [
+              { key: 'board' as const, label: t.moveBoard },
+              { key: 'category' as const, label: t.moveCategory },
+              { key: 'bookmark' as const, label: t.moveBookmark },
+            ] as const
+          ).map(({ key, label }) => (
+            <div key={key} className="flex items-center justify-between py-0.5">
+              <span className="text-[11px] text-[#cbd5f5]">{label}</span>
+              <button
+                type="button"
+                onClick={() => s.setDragDrop({ [key]: !s.dragDrop[key] })}
+                className={`min-w-[44px] px-2.5 py-1 rounded-full text-[11px] font-medium transition ${
+                  s.dragDrop[key] ? 'bg-[#256af4]/20 text-[#bfdbfe]' : 'bg-white/10 text-[#cbd5f5] hover:bg-white/15'
+                }`}
+              >
+                {s.dragDrop[key] ? t.on : t.off}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.startPage}
+        </p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => s.setStartOnLanding(true)}
+            className={`flex-1 py-1.5 rounded-lg font-medium ${toggleBtn(s.startOnLanding)}`}
+          >
+            {t.startPageLanding}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setStartOnLanding(false)}
+            className={`flex-1 py-1.5 rounded-lg font-medium ${toggleBtn(!s.startOnLanding)}`}
+          >
+            {t.startPageBookmarks}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.displayMode}
+        </p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => s.setTheme('dark')}
+            className={`flex-1 py-1.5 rounded-lg font-medium flex items-center justify-center gap-1 ${toggleBtn(
+              s.theme === 'dark'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">dark_mode</span>
+            {t.dark}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setTheme('light')}
+            className={`flex-1 py-1.5 rounded-lg font-medium flex items-center justify-center gap-1 ${toggleBtn(
+              s.theme === 'light'
+            )}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">light_mode</span>
+            {t.light}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -309,7 +692,7 @@ function PopupAuthenticatorTab({
   }
 
   if (loading) {
-    return <p className="text-[#90a4cb] text-sm py-6 px-3">Đang tải...</p>;
+    return <p className="text-[#90a4cb] text-sm py-6 px-3">{t.popupLoading}</p>;
   }
 
   if (entries.length === 0) {
