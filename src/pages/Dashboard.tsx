@@ -610,7 +610,12 @@ export default function Dashboard({
   const numColumnsPreferred = selectedBoard?.category_columns ?? settings.categoryColumns;
   const syncingColumnsRef = useRef(false);
   useEffect(() => {
+    syncingColumnsRef.current = false;
+  }, [selectedBoardId]);
+
+  useEffect(() => {
     if (!selectedBoardId || columnsLoading || syncingColumnsRef.current) return;
+    if (boardColumns.length > 0 && boardColumns[0].board_id !== selectedBoardId) return;
     if (boardColumns.length >= numColumnsPreferred) return;
     syncingColumnsRef.current = true;
     (async () => {
@@ -641,7 +646,7 @@ export default function Dashboard({
         syncingColumnsRef.current = false;
       }
     })();
-  }, [selectedBoardId, columnsLoading, boardColumns.length, numColumnsPreferred, refetchBoardColumns]);
+  }, [selectedBoardId, columnsLoading, boardColumns, numColumnsPreferred, refetchBoardColumns]);
 
   // Sắp xếp category: ưu tiên theo board, không có thì dùng Settings
   const effectiveSortOrder: CategorySortOrder =
@@ -665,27 +670,39 @@ export default function Dashboard({
     [effectiveSortOrder]
   );
 
-  // Assign column_id to categories that still have null and normalize sort_order
+  // Assign column_id only to categories that have null column_id (never assigned)
   const assigningOrphansRef = useRef(false);
   useEffect(() => {
+    assigningOrphansRef.current = false;
+  }, [selectedBoardId]);
+
+  useEffect(() => {
+    if (!selectedBoardId || columnsLoading || categoriesLoading) return;
     if (!boardColumns.length || !categories.length || assigningOrphansRef.current) return;
+    if (boardColumns[0].board_id !== selectedBoardId) return;
+    if (categories[0].board_id !== selectedBoardId) return;
+
     const firstColId = boardColumns[0].id;
     const orphans = categories.filter((c) => !c.column_id);
     if (orphans.length === 0) return;
+
     assigningOrphansRef.current = true;
+    let cancelled = false;
     (async () => {
       const existing = categories.filter((c) => c.column_id === firstColId);
       let nextOrder = existing.length === 0 ? 0 : Math.max(...existing.map((c) => c.sort_order), -1) + 1;
       for (const cat of orphans) {
+        if (cancelled) break;
         await supabase
           .from('categories')
           .update({ column_id: firstColId, sort_order: nextOrder++, updated_at: new Date().toISOString() })
           .eq('id', cat.id);
       }
-      await refetchCategories();
+      if (!cancelled) await refetchCategories();
       assigningOrphansRef.current = false;
     })();
-  }, [boardColumns, categories, refetchCategories]);
+    return () => { cancelled = true; };
+  }, [selectedBoardId, boardColumns, categories, columnsLoading, categoriesLoading, refetchCategories]);
 
   // Group categories by column; always order by sort_order so drag order is stable on refresh
   const categoriesByColumn = useMemo(() => {
@@ -696,14 +713,10 @@ export default function Dashboard({
     const firstColId = boardColumns[0]?.id ?? null;
     for (const cat of categories) {
       const colId = cat.column_id ?? firstColId;
-      if (colId) {
-        const list = map.get(colId) ?? [];
-        list.push(cat);
-        map.set(colId, list);
-      } else {
-        const list = map.get(boardColumns[0]?.id ?? '') ?? [];
-        list.push(cat);
-        if (boardColumns[0]) map.set(boardColumns[0].id, list);
+      if (colId && map.has(colId)) {
+        map.get(colId)!.push(cat);
+      } else if (firstColId) {
+        map.get(firstColId)!.push(cat);
       }
     }
     for (const [, list] of map) {
@@ -982,21 +995,39 @@ export default function Dashboard({
     const maxOrder = boards.length === 0 ? 0 : Math.max(...boards.map((b) => b.sort_order), 0);
     const { data: newBoardRow, error: boardErr } = await supabase
       .from('boards')
-      .insert({ user_id: user.id, name: `${board.name} (bản sao)`, sort_order: maxOrder + 1 })
+      .insert({ user_id: user.id, name: `${board.name} (bản sao)`, sort_order: maxOrder + 1, category_columns: board.category_columns })
       .select('id')
       .single();
     if (boardErr || !newBoardRow) return;
-      const { data: sourceCats } = await supabase
-        .from('categories')
-        .select('*, bookmarks(*)')
-        .eq('board_id', board.id)
-        .order('sort_order', { ascending: true });
+
+    const { data: sourceCols } = await supabase
+      .from('board_columns')
+      .select('*')
+      .eq('board_id', board.id)
+      .order('sort_order', { ascending: true });
+    const colIdMap = new Map<string, string>();
+    for (const col of sourceCols ?? []) {
+      const { data: newCol } = await supabase
+        .from('board_columns')
+        .insert({ board_id: newBoardRow.id, name: col.name, sort_order: col.sort_order })
+        .select('id')
+        .single();
+      if (newCol) colIdMap.set(col.id, newCol.id);
+    }
+
+    const { data: sourceCats } = await supabase
+      .from('categories')
+      .select('*, bookmarks(*)')
+      .eq('board_id', board.id)
+      .order('sort_order', { ascending: true });
     for (const cat of sourceCats ?? []) {
       const bookmarks = (cat as { bookmarks?: Bookmark[] }).bookmarks ?? [];
+      const newColId = cat.column_id ? (colIdMap.get(cat.column_id) ?? null) : (colIdMap.values().next().value ?? null);
       const { data: newCatRow } = await supabase
         .from('categories')
         .insert({
           board_id: newBoardRow.id,
+          column_id: newColId,
           name: cat.name,
           color: cat.color ?? undefined,
           icon: cat.icon ?? undefined,
@@ -1051,17 +1082,35 @@ export default function Dashboard({
   };
 
   const handleMoveCategoryToBoard = async (categoryId: string, targetBoardId: string) => {
-    const { data: targetCategories } = await supabase
-      .from('categories')
-      .select('sort_order')
+    const { data: targetCols } = await supabase
+      .from('board_columns')
+      .select('id')
       .eq('board_id', targetBoardId)
       .order('sort_order', { ascending: false })
       .limit(1);
-    const maxOrder = targetCategories?.[0]?.sort_order ?? -1;
-    await supabase
+    const targetLastColId = targetCols?.[0]?.id ?? null;
+
+    const { data: colCategories } = await supabase
       .from('categories')
-      .update({ board_id: targetBoardId, sort_order: maxOrder + 1, updated_at: new Date().toISOString() })
+      .select('sort_order')
+      .eq('board_id', targetBoardId)
+      .eq('column_id', targetLastColId!)
+      .order('sort_order', { ascending: false })
+      .limit(1);
+    const maxOrder = colCategories?.[0]?.sort_order ?? -1;
+    const { error } = await supabase
+      .from('categories')
+      .update({
+        board_id: targetBoardId,
+        column_id: targetLastColId,
+        sort_order: maxOrder + 1,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', categoryId);
+    if (error) {
+      setToast({ message: settings.locale === 'vi' ? 'Lỗi di chuyển category' : 'Failed to move category', type: 'error' });
+      return;
+    }
     await refetchCategories();
     setCategoryModalOpen(false);
     setCategoryEditing(null);
@@ -1082,15 +1131,18 @@ export default function Dashboard({
 
   const handleDuplicateCategory = async (category: Category & { bookmarks?: Bookmark[] }) => {
     if (!selectedBoardId) return;
-    const maxOrder = categories.length === 0 ? 0 : Math.max(...categories.map((c) => c.sort_order), 0);
+    const colId = category.column_id ?? boardColumns[0]?.id ?? null;
+    const colCats = colId ? (categoriesByColumn.get(colId) ?? []) : categories;
+    const maxOrder = colCats.length === 0 ? 0 : Math.max(...colCats.map((c) => c.sort_order), 0) + 1;
     const { data: newCatRow } = await supabase
       .from('categories')
       .insert({
         board_id: selectedBoardId,
+        column_id: colId,
         name: `${category.name} (bản sao)`,
         color: category.color ?? undefined,
         icon: category.icon ?? undefined,
-        sort_order: maxOrder + 1,
+        sort_order: maxOrder,
       })
       .select('id')
       .single();
@@ -1169,16 +1221,36 @@ export default function Dashboard({
     await refetchCategories();
   };
 
-  const handleMoveBookmark = async (bookmark: Bookmark, targetCategoryId: string) => {
+  const handleMoveBookmark = async (bookmark: Bookmark, targetCategoryId: string, targetBoardId?: string) => {
     if (bookmark.category_id === targetCategoryId) return;
+    let maxOrder = 0;
     const targetCat = categories.find((c) => c.id === targetCategoryId);
-    const maxOrder = targetCat?.bookmarks?.length ? Math.max(...targetCat.bookmarks.map((b) => b.sort_order), 0) + 1 : 0;
-    await supabase
+    if (targetCat?.bookmarks?.length) {
+      maxOrder = Math.max(...targetCat.bookmarks.map((b) => b.sort_order), 0) + 1;
+    } else {
+      const { data: existing } = await supabase
+        .from('bookmarks')
+        .select('sort_order')
+        .eq('category_id', targetCategoryId)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+      maxOrder = (existing?.[0]?.sort_order ?? -1) + 1;
+    }
+    const { data: updated, error } = await supabase
       .from('bookmarks')
       .update({ category_id: targetCategoryId, sort_order: maxOrder, updated_at: new Date().toISOString() })
-      .eq('id', bookmark.id);
-    await refetchCategories();
+      .eq('id', bookmark.id)
+      .select();
+    if (error || !updated?.length) {
+      setToast({ message: settings.locale === 'vi' ? 'Lỗi di chuyển bookmark' : 'Failed to move bookmark', type: 'error' });
+      return;
+    }
     setBookmarkToMove(null);
+    if (targetBoardId && targetBoardId !== selectedBoardId) {
+      setSelectedBoardId(targetBoardId);
+    } else {
+      await refetchCategories();
+    }
   };
 
   const openAddBookmark = (defaultCategoryId?: string) => {
@@ -1473,7 +1545,7 @@ export default function Dashboard({
             </React.Fragment>
           ))}
           {!boardsLoading && boards.length === 0 && (
-            <p className="px-2 py-1.5 text-text-muted text-xs">Chưa có board</p>
+            <p className="px-2 py-1.5 text-text-muted text-xs">{getT(settings.locale).noBoardsYet}</p>
           )}
         </div>
       </aside>
@@ -1873,13 +1945,7 @@ export default function Dashboard({
           )}
           {!searchTerm && (
             <>
-              {!categoriesLoading && categories.length === 0 && selectedBoardId && !columnsLoading && boardColumns.length === 0 && (
-                <div className="text-text-muted text-xs py-6 text-center">
-                  <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
-                  <p>{getT(settings.locale).loadingColumns}</p>
-                </div>
-              )}
-              {!categoriesLoading && categories.length === 0 && selectedBoardId && boardColumns.length > 0 && (
+              {selectedBoardId && categories.length === 0 && !categoriesLoading && (
                 <div className="text-text-muted text-xs py-6 text-center">
                   <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
                   <p>{getT(settings.locale).noCategoriesDashboard}</p>
@@ -2159,7 +2225,7 @@ export default function Dashboard({
         bookmark={bookmarkToMove}
         boards={boards}
         onClose={() => setBookmarkToMove(null)}
-        onMove={(categoryId) => bookmarkToMove && handleMoveBookmark(bookmarkToMove, categoryId)}
+        onMove={(categoryId, boardId) => bookmarkToMove && handleMoveBookmark(bookmarkToMove, categoryId, boardId)}
       />
 
       <SearchSpotlightModal
@@ -2186,7 +2252,7 @@ function MoveBookmarkModal({
   bookmark: Bookmark | null;
   boards: Board[];
   onClose: () => void;
-  onMove: (categoryId: string) => void;
+  onMove: (categoryId: string, boardId: string) => void;
 }) {
   const settings = useSettings();
   const t = getT(settings.locale);
@@ -2300,7 +2366,7 @@ function MoveBookmarkModal({
                           key={cat.id}
                           type="button"
                           disabled={isCurrent}
-                          onClick={() => { onMove(cat.id); onClose(); }}
+                          onClick={() => { onMove(cat.id, board.id); onClose(); }}
                           className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs transition ${
                             isCurrent
                               ? 'cursor-not-allowed bg-white/5 text-text-muted border border-white/10'

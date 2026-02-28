@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useSettings } from '../contexts/SettingsContext';
+import { getT } from '../lib/i18n';
 
 type TabId = 'json' | 'jwt' | 'url' | 'base64';
 
@@ -78,7 +80,7 @@ function ActionBtn({
 }
 
 // ——— JSON ———
-function JsonTab() {
+function JsonTab({ t }: { t: ReturnType<typeof getT> }) {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -119,24 +121,24 @@ function JsonTab() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-5 h-full min-h-0 items-stretch">
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Nhập / Dán JSON</Label>
+        <Label>{t.itToolboxInputJson}</Label>
         <TextArea value={input} onChange={setInput} placeholder='{"key": "value"}' error={!!error} rows={14} className="flex-1 min-h-[140px]" />
         {error && <p className="mt-1.5 text-[11px] text-red-400">{error}</p>}
       </div>
       <div className="flex flex-col justify-center gap-2.5 flex-shrink-0">
-        <ActionBtn onClick={beautify} variant="success">Làm đẹp</ActionBtn>
-        <ActionBtn onClick={minify} variant="warning">Làm gọn</ActionBtn>
+        <ActionBtn onClick={beautify} variant="success">{t.itToolboxBeautify}</ActionBtn>
+        <ActionBtn onClick={minify} variant="warning">{t.itToolboxMinify}</ActionBtn>
         <ActionBtn onClick={decode} variant="primary">Decode</ActionBtn>
       </div>
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Kết quả</Label>
-        <TextArea value={output} onChange={undefined} placeholder="Kết quả hiển thị ở đây" readOnly rows={14} className="flex-1 min-h-[140px]" />
+        <Label>{t.itToolboxResult}</Label>
+        <TextArea value={output} onChange={undefined} placeholder={t.itToolboxResultPlaceholder} readOnly rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
 }
 
-// ——— JWT helpers (no external lib: base64url + optional HMAC with Web Crypto) ———
+// ——— JWT helpers ———
 function base64UrlDecode(str: string): string {
   const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   const pad = base64.length % 4;
@@ -179,7 +181,7 @@ async function signHmacSha256(key: string, data: string): Promise<string> {
 }
 
 // ——— JWT Tab ———
-function JwtTab() {
+function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
   const [input, setInput] = useState('');
   const [secret, setSecret] = useState('');
   const [headerOut, setHeaderOut] = useState('');
@@ -202,7 +204,7 @@ function JwtTab() {
     }
     const parts = raw.split('.');
     if (parts.length !== 3) {
-      setJwtError('JWT phải có 3 phần (header.payload.signature)');
+      setJwtError(t.itToolboxJwtInvalid);
       setHeaderOut('');
       setPayloadOut('');
       return;
@@ -219,7 +221,7 @@ function JwtTab() {
         setSignatureValid(expectedSig === actualSig);
       }
     } catch (e) {
-      setJwtError(e instanceof Error ? e.message : 'Lỗi decode');
+      setJwtError(e instanceof Error ? e.message : t.itToolboxErrorDecode);
       setHeaderOut('');
       setPayloadOut('');
     }
@@ -256,12 +258,11 @@ function JwtTab() {
         setEncodedJwt(`${unsigned}.`);
       }
     } catch (e) {
-      setJwtError(e instanceof Error ? e.message : 'Lỗi encode');
+      setJwtError(e instanceof Error ? e.message : t.itToolboxErrorEncode);
       setEncodedJwt('');
     }
   };
 
-  // Tự động decode khi có token / secret
   React.useEffect(() => {
     const raw = input.trim();
     if (!raw) {
@@ -275,7 +276,6 @@ function JwtTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, secret]);
 
-  // Tự động encode khi thay đổi payload / secret
   React.useEffect(() => {
     if (!encodePayload.trim()) {
       setEncodedJwt('');
@@ -317,7 +317,7 @@ function JwtTab() {
         {mode === 'decode' ? (
           <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3.5 space-y-2.5 flex-shrink-0">
             <Label>JWT</Label>
-            <TextArea value={input} onChange={setInput} placeholder="Dán token JWT" rows={6} />
+            <TextArea value={input} onChange={setInput} placeholder={t.itToolboxJwtPaste} rows={6} />
             <input
               type="text"
               value={secret}
@@ -327,7 +327,7 @@ function JwtTab() {
             />
             {signatureValid !== null && (
               <p className={`text-[11px] ${signatureValid ? 'text-emerald-400' : 'text-red-400'}`}>
-                Chữ ký: {signatureValid ? 'Hợp lệ' : 'Không hợp lệ'}
+                {signatureValid ? t.itToolboxJwtSignatureValid : t.itToolboxJwtSignatureInvalid}
               </p>
             )}
             {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
@@ -364,20 +364,20 @@ function JwtTab() {
               <Label>Payload</Label>
               <TextArea value={payloadOut} onChange={setPayloadOut} rows={10} className="min-h-[140px] flex-1" />
               <div className="mt-1.5 flex gap-2">
-                <ActionBtn onClick={beautifyPayload} variant="success">Làm đẹp</ActionBtn>
-                <ActionBtn onClick={minifyPayload} variant="warning">Làm gọn</ActionBtn>
+                <ActionBtn onClick={beautifyPayload} variant="success">{t.itToolboxBeautify}</ActionBtn>
+                <ActionBtn onClick={minifyPayload} variant="warning">{t.itToolboxMinify}</ActionBtn>
               </div>
             </div>
           </>
         ) : (
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0 flex-1">
-            <Label>JWT sau Encode</Label>
+            <Label>{t.itToolboxJwtEncoded}</Label>
             <TextArea
               value={encodedJwt}
               onChange={undefined}
               readOnly
               rows={12}
-              placeholder="JWT sau encode"
+              placeholder={t.itToolboxJwtEncodedPlaceholder}
               className="min-h-[160px] flex-1"
             />
           </div>
@@ -388,7 +388,7 @@ function JwtTab() {
 }
 
 // ——— URL Tab ———
-function UrlTab() {
+function UrlTab({ t }: { t: ReturnType<typeof getT> }) {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -398,7 +398,7 @@ function UrlTab() {
     try {
       setOutput(encodeURIComponent(input));
     } catch (e) {
-      setUrlError(e instanceof Error ? e.message : 'Lỗi encode');
+      setUrlError(e instanceof Error ? e.message : t.itToolboxErrorEncode);
       setOutput('');
     }
   };
@@ -408,7 +408,7 @@ function UrlTab() {
     try {
       setOutput(decodeURIComponent(input));
     } catch (e) {
-      setUrlError(e instanceof Error ? e.message : 'Lỗi decode');
+      setUrlError(e instanceof Error ? e.message : t.itToolboxErrorDecode);
       setOutput('');
     }
   };
@@ -416,7 +416,7 @@ function UrlTab() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-5 h-full min-h-0 items-stretch">
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Nhập chuỗi</Label>
+        <Label>{t.itToolboxInputString}</Label>
         <TextArea value={input} onChange={setInput} placeholder="https://example.com?q=hello world" rows={14} className="flex-1 min-h-[140px]" />
         {urlError && <p className="mt-1.5 text-[11px] text-red-400">{urlError}</p>}
       </div>
@@ -425,15 +425,15 @@ function UrlTab() {
         <ActionBtn onClick={decode} variant="primary">Decode</ActionBtn>
       </div>
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Kết quả</Label>
-        <TextArea value={output} onChange={undefined} readOnly placeholder="Kết quả" rows={14} className="flex-1 min-h-[140px]" />
+        <Label>{t.itToolboxResult}</Label>
+        <TextArea value={output} onChange={undefined} readOnly placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
 }
 
 // ——— Base64 Tab ———
-function Base64Tab() {
+function Base64Tab({ t }: { t: ReturnType<typeof getT> }) {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [b64Error, setB64Error] = useState<string | null>(null);
@@ -443,7 +443,7 @@ function Base64Tab() {
     try {
       setOutput(btoa(unescape(encodeURIComponent(input))));
     } catch (e) {
-      setB64Error(e instanceof Error ? e.message : 'Lỗi encode');
+      setB64Error(e instanceof Error ? e.message : t.itToolboxErrorEncode);
       setOutput('');
     }
   };
@@ -453,7 +453,7 @@ function Base64Tab() {
     try {
       setOutput(decodeURIComponent(escape(atob(input.replace(/\s/g, '')))));
     } catch (e) {
-      setB64Error(e instanceof Error ? e.message : 'Chuỗi không phải Base64 hợp lệ');
+      setB64Error(e instanceof Error ? e.message : t.itToolboxBase64Invalid);
       setOutput('');
     }
   };
@@ -461,8 +461,8 @@ function Base64Tab() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-5 h-full min-h-0 items-stretch">
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Nhập chuỗi</Label>
-        <TextArea value={input} onChange={setInput} placeholder="Văn bản hoặc Base64" rows={14} className="flex-1 min-h-[140px]" />
+        <Label>{t.itToolboxInputString}</Label>
+        <TextArea value={input} onChange={setInput} placeholder={t.itToolboxBase64Placeholder} rows={14} className="flex-1 min-h-[140px]" />
         {b64Error && <p className="mt-1.5 text-[11px] text-red-400">{b64Error}</p>}
       </div>
       <div className="flex flex-col justify-center gap-2.5 flex-shrink-0">
@@ -470,8 +470,8 @@ function Base64Tab() {
         <ActionBtn onClick={decode} variant="primary">Decode</ActionBtn>
       </div>
       <div className="flex flex-col min-h-0 flex-1">
-        <Label>Kết quả</Label>
-        <TextArea value={output} onChange={undefined} readOnly placeholder="Kết quả" rows={14} className="flex-1 min-h-[140px]" />
+        <Label>{t.itToolboxResult}</Label>
+        <TextArea value={output} onChange={undefined} readOnly placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
@@ -492,6 +492,8 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
+  const settings = useSettings();
+  const t = getT(settings.locale);
   const [activeTab, setActiveTab] = useState<TabId>('jwt');
 
   if (!open) return null;
@@ -510,13 +512,13 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
           <h2 id="it-toolbox-title" className="flex items-center gap-2 text-base font-semibold text-white">
             <span className="material-symbols-outlined text-accent text-[20px]">build</span>
-            IT Tool box
+            {t.itToolboxTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition"
-            aria-label="Đóng"
+            aria-label={t.itToolboxClose}
           >
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
@@ -545,10 +547,10 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
 
         <div className="flex-1 overflow-hidden p-5 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 overflow-hidden">
-            {activeTab === 'json' && <JsonTab />}
-            {activeTab === 'jwt' && <JwtTab />}
-            {activeTab === 'url' && <UrlTab />}
-            {activeTab === 'base64' && <Base64Tab />}
+            {activeTab === 'json' && <JsonTab t={t} />}
+            {activeTab === 'jwt' && <JwtTab t={t} />}
+            {activeTab === 'url' && <UrlTab t={t} />}
+            {activeTab === 'base64' && <Base64Tab t={t} />}
           </div>
         </div>
       </div>

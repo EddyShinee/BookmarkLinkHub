@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export interface BoardColumn {
@@ -14,6 +14,13 @@ export function useBoardColumns(boardId: string | null) {
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const boardIdRef = useRef(boardId);
+  boardIdRef.current = boardId;
+
+  useEffect(() => {
+    setColumns([]);
+    setLoading(true);
+  }, [boardId]);
 
   const fetchColumns = useCallback(async () => {
     if (!boardId) {
@@ -30,12 +37,16 @@ export function useBoardColumns(boardId: string | null) {
         .eq('board_id', boardId)
         .order('sort_order', { ascending: true });
       if (e) throw e;
+      if (boardIdRef.current !== boardId) return;
       setColumns((data ?? []) as BoardColumn[]);
     } catch (e) {
+      if (boardIdRef.current !== boardId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
       setColumns([]);
     } finally {
-      setLoading(false);
+      if (boardIdRef.current === boardId) {
+        setLoading(false);
+      }
     }
   }, [boardId]);
 

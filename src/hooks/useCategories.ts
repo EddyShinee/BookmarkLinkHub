@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Category, Bookmark } from './useBookmarks';
 
@@ -6,10 +6,18 @@ export function useCategories(boardId: string | null) {
   const [categories, setCategories] = useState<(Category & { bookmarks: Bookmark[] })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const boardIdRef = useRef(boardId);
+  boardIdRef.current = boardId;
+
+  useEffect(() => {
+    setCategories([]);
+    setLoading(true);
+  }, [boardId]);
 
   const fetchCategories = useCallback(async () => {
     if (!boardId) {
       setCategories([]);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -22,6 +30,7 @@ export function useCategories(boardId: string | null) {
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
       if (e1) throw e1;
+      if (boardIdRef.current !== boardId) return;
       const list = (cats ?? []) as Category[];
       if (list.length === 0) {
         setCategories([]);
@@ -34,6 +43,7 @@ export function useCategories(boardId: string | null) {
         .in('category_id', list.map((c) => c.id))
         .order('sort_order', { ascending: true });
       if (e2) throw e2;
+      if (boardIdRef.current !== boardId) return;
       const bookmarks = (bms ?? []) as Bookmark[];
       const byCategory = list.map((cat) => ({
         ...cat,
@@ -41,10 +51,13 @@ export function useCategories(boardId: string | null) {
       }));
       setCategories(byCategory);
     } catch (e) {
+      if (boardIdRef.current !== boardId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
       setCategories([]);
     } finally {
-      setLoading(false);
+      if (boardIdRef.current === boardId) {
+        setLoading(false);
+      }
     }
   }, [boardId]);
 
