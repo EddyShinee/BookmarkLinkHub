@@ -196,7 +196,8 @@ export default function Landing() {
 
   const showPomodoro = settings.showLandingPomodoro ?? true;
   const showTodos = settings.showLandingTodos ?? true;
-  const gridColsClass = 'grid-cols-1 lg:grid-cols-3';
+  const gridColsClass = 'grid-cols-1 md:grid-cols-3';
+  const gridRowsClass = 'max-md:[grid-auto-rows:minmax(200px,auto)] md:[grid-auto-rows:40vh]';
 
   return (
     <div className="fixed inset-0 overflow-hidden">
@@ -225,40 +226,41 @@ export default function Landing() {
         }}
       />
 
-      <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 text-center text-white">
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-3 py-1">
+      <div className="relative z-10 flex flex-col min-h-full w-full">
+        <div className="flex-shrink-0 flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 sm:px-3 sm:py-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-100">
+            <span className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.18em] text-slate-100">
               LinkHub
             </span>
           </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setBgSettingsOpen((o) => !o)}
+              className="inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 sm:px-3 border border-white/25 text-white text-[11px] hover:bg-black/55 hover:text-white"
+              aria-label={t.settings}
+            >
+              <span className="material-symbols-outlined text-[16px] text-white">settings</span>
+              <span className="hidden sm:inline text-white">{t.settings}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/bookmarks')}
+              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.7)] hover:bg-white"
+            >
+              <span className="material-symbols-outlined text-[14px] sm:text-[16px]">bookmark</span>
+              <span>{t.landingPrimaryCta}</span>
+              <span className="hidden sm:inline ml-1 rounded border border-slate-900/20 px-1 py-0.5 text-[9px] font-medium opacity-60">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="absolute top-4 right-4 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setBgSettingsOpen((o) => !o)}
-            className="inline-flex items-center gap-1 rounded-full bg-black/35 px-3 py-1.5 border border-white/25 text-[11px] hover:bg-black/55"
-          >
-            <span className="material-symbols-outlined text-[16px]">settings</span>
-            <span>{t.settings}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/bookmarks')}
-            className="inline-flex items-center gap-2 rounded-full bg-white/95 text-slate-900 px-4 py-1.5 text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.7)] hover:bg-white"
-          >
-            <span className="material-symbols-outlined text-[16px]">bookmark</span>
-            <span>{t.landingPrimaryCta}</span>
-            <span className="ml-1 rounded border border-slate-900/20 px-1 py-0.5 text-[9px] font-medium opacity-60">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}</span>
-          </button>
-        </div>
-
-        <div className="mt-10 w-full text-left">
-          <div className={`grid gap-8 items-stretch ${gridColsClass}`} style={{ gridAutoRows: '40vh' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 text-white flex flex-col">
+          <div className="w-full max-w-[1600px] mx-auto py-4 sm:py-6 pb-8 text-left flex-1 flex flex-col min-h-0 max-md:flex-none max-md:min-h-0 md:justify-center">
+          <div className={`grid gap-6 sm:gap-8 lg:gap-10 items-stretch ${gridColsClass} ${gridRowsClass}`}>
             {/* Pomodoro column */}
-            <div className={`h-full flex flex-col ${showPomodoro ? 'rounded-2xl bg-black/35 border border-white/20 backdrop-blur-[18px] px-5 py-5 shadow-[0_22px_70px_rgba(0,0,0,0.9)]' : ''}`}>
+            <div className={`h-full flex flex-col ${showPomodoro ? 'rounded-2xl bg-black/35 border border-white/20 backdrop-blur-[18px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.9)]' : ''}`}>
               {showPomodoro && (
                 <>
               <div className="flex items-center justify-between mb-2">
@@ -282,8 +284,9 @@ export default function Landing() {
                 />
               </div>
 
-              <div className="flex-1 flex items-center justify-center mb-2">
-                <svg width={140} height={140} viewBox="0 0 80 80">
+              <div className="flex-1 flex items-center justify-center mb-2 w-full">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-[140px] md:h-[140px] flex-shrink-0">
+                <svg width="100%" height="100%" viewBox="0 0 80 80" className="max-w-full max-h-full">
                   {(() => {
                     const radius = 36;
                     const circumference = 2 * Math.PI * radius;
@@ -333,6 +336,7 @@ export default function Landing() {
                     );
                   })()}
                 </svg>
+                </div>
               </div>
 
                   <div className="mt-auto space-y-2">
@@ -362,7 +366,7 @@ export default function Landing() {
                   </button>
                 </div>
 
-                <div className="flex gap-2 text-[10px] text-slate-300">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => {
@@ -370,7 +374,7 @@ export default function Landing() {
                       setPomodoroRunning(false);
                       setPomodoroSeconds(25 * 60);
                     }}
-                    className={`flex-1 px-2 py-1 rounded-lg border ${
+                    className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
                       pomodoroMode === 'work'
                         ? 'bg-white/15 border-white/40'
                         : 'bg-black/20 border-white/20'
@@ -385,7 +389,7 @@ export default function Landing() {
                       setPomodoroRunning(false);
                       setPomodoroSeconds(5 * 60);
                     }}
-                    className={`flex-1 px-2 py-1 rounded-lg border ${
+                    className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
                       pomodoroMode === 'break'
                         ? 'bg-white/15 border-white/40'
                         : 'bg-black/20 border-white/20'
@@ -395,7 +399,7 @@ export default function Landing() {
                   </button>
                 </div>
 
-                    <div className="flex items-center gap-2 text-[10px] text-slate-300">
+                    <div className="flex items-center gap-2 text-[10px] text-slate-300 flex-wrap">
                   <input
                     type="number"
                     min={1}
@@ -424,7 +428,7 @@ export default function Landing() {
               )}
             </div>
 
-            <div className="rounded-3xl bg-black/30 border border-white/20 backdrop-blur-[22px] px-6 sm:px-10 py-6 sm:py-8 shadow-[0_26px_90px_rgba(0,0,0,0.9)] h-full flex flex-col justify-center">
+            <div className="rounded-3xl bg-black/30 border border-white/20 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_26px_90px_rgba(0,0,0,0.9)] h-full flex flex-col justify-center">
               <div className="flex items-baseline justify-center gap-2 text-[56px] sm:text-[72px] md:text-[88px] font-semibold leading-none tracking-tight drop-shadow-[0_16px_52px_rgba(0,0,0,0.95)]">
                 <span>
                   {(() => {
@@ -458,10 +462,10 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className={`h-full flex flex-col ${showTodos ? 'rounded-2xl bg-black/35 border border-white/15 backdrop-blur-[14px] px-4 py-3 shadow-[0_18px_45px_rgba(0,0,0,0.7)]' : ''}`}>
+            <div className={`h-full min-h-0 flex flex-col ${showTodos ? 'rounded-2xl bg-black/35 border border-white/15 backdrop-blur-[14px] px-3 py-3 sm:px-4 shadow-[0_18px_45px_rgba(0,0,0,0.7)]' : ''}`}>
             {showTodos && (
             <>
-            <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div>
                 <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-200">
                   {t.landingTodoTitle}
@@ -470,7 +474,7 @@ export default function Landing() {
                   {todos.filter((t) => !t.done).length}/{todos.length}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] bg-white/5 rounded-full px-1.5 py-0.5 border border-white/15">
+              <div className="flex items-center gap-1 text-[11px] bg-white/5 rounded-full px-1.5 py-0.5 border border-white/15 flex-shrink-0">
                 {(['all', 'active', 'done'] as const).map((key) => (
                   <button
                     key={key}
@@ -490,8 +494,8 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <div className="flex items-center gap-1 text-[11px]">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <div className="flex items-center gap-1 text-[11px] flex-shrink-0">
                 <span className="text-slate-200">{t.landingTodoPriority}</span>
                 {(['low', 'medium', 'high'] as TodoPriority[]).map((p) => {
                   const color =
@@ -510,7 +514,7 @@ export default function Landing() {
                   );
                 })}
               </div>
-              <div className="flex items-center gap-1 text-[11px]">
+              <div className="flex items-center gap-1 text-[11px] flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setSortBy('created')}
@@ -604,7 +608,7 @@ export default function Landing() {
                 +
               </button>
             </form>
-            <div className="max-h-[30vh] overflow-y-auto space-y-1.5 flex-1">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1.5">
               {todos.length === 0 ? (
                 <p className="text-[12px] text-slate-300">{t.landingTodoEmpty}</p>
               ) : (
@@ -703,6 +707,7 @@ export default function Landing() {
             )}
             </div>
           </div>
+          </div>
         </div>
 
         {bgSettingsOpen && (
@@ -711,7 +716,7 @@ export default function Landing() {
             onClick={() => setBgSettingsOpen(false)}
           >
             <div
-              className="w-full max-w-4xl rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-5 text-left text-[11px]"
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-left text-[11px]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
@@ -896,7 +901,7 @@ export default function Landing() {
             onClick={() => setNameModalOpen(false)}
           >
             <div
-              className="w-full max-w-md rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-5 text-left text-[12px]"
+              className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-left text-[12px]"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-sm font-semibold text-slate-50 mb-2">

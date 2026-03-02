@@ -1627,7 +1627,7 @@ export default function Dashboard({
               {getT(settings.locale).addBookmark}
             </button>
           </div>
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[200px] max-md:hidden">
             <button
               type="button"
               ref={columnConfigTriggerRef}
