@@ -4,6 +4,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { getT } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabaseClient';
+import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 
 const DEFAULT_LANDING_BACKGROUND =
   'https://images.unsplash.com/photo-1769878539345-2d8c4769209d?q=80&w=1483&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D';
@@ -119,42 +120,22 @@ export default function Landing() {
           }
         }
         // Fallback to local storage if no user or DB error
-        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-          chrome.storage.local.get(['landing_todos'], (res) => {
-            const raw = res.landing_todos;
-            if (Array.isArray(raw)) {
-              setTodos(
-                raw.map((item: any) => ({
-                  id: String(item.id ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`),
-                  text: String(item.text ?? ''),
-                  done: Boolean(item.done),
-                  priority: (item.priority as TodoPriority) ?? 'medium',
-                  createdAt:
-                    typeof item.createdAt === 'number'
-                      ? item.createdAt
-                      : Date.now(),
-                }))
-              );
-            }
-          });
-        } else if (typeof window !== 'undefined') {
-          const raw = window.localStorage.getItem('landing_todos');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              setTodos(
-                parsed.map((item: any) => ({
-                  id: String(item.id ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`),
-                  text: String(item.text ?? ''),
-                  done: Boolean(item.done),
-                  priority: (item.priority as TodoPriority) ?? 'medium',
-                  createdAt:
-                    typeof item.createdAt === 'number'
-                      ? item.createdAt
-                      : Date.now(),
-                }))
-              );
-            }
+        const raw = await chromeStorageAdapter.getItem('landing_todos');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setTodos(
+              parsed.map((item: any) => ({
+                id: String(item.id ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+                text: String(item.text ?? ''),
+                done: Boolean(item.done),
+                priority: (item.priority as TodoPriority) ?? 'medium',
+                createdAt:
+                  typeof item.createdAt === 'number'
+                    ? item.createdAt
+                    : Date.now(),
+              }))
+            );
           }
         }
       } catch {
@@ -166,15 +147,7 @@ export default function Landing() {
 
   // Keep local storage cache in sync for offline/extension use
   useEffect(() => {
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ landing_todos: todos });
-      } else if (typeof window !== 'undefined') {
-        window.localStorage.setItem('landing_todos', JSON.stringify(todos));
-      }
-    } catch {
-      // ignore
-    }
+    chromeStorageAdapter.setItem('landing_todos', JSON.stringify(todos));
   }, [todos]);
 
   const timeStr = useMemo(

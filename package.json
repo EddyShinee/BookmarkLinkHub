@@ -12,7 +12,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:web": "vite build --config vite.config.web.ts",
     "preview": "vite preview",
+    "preview:web": "vite preview --config vite.config.web.ts --port 4173",
     "pack": "npm run build && cd dist && zip -r ../linkhub-chrome-store.zip . && cd .. && echo Done"
   },
   "dependencies": {

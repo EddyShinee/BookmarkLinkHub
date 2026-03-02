@@ -11,6 +11,7 @@ import {
   type CategorySortOrder,
   type TimeFormat,
 } from '../lib/settings';
+import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 
 interface SettingsContextValue extends AppSettings {
   setLocale: (v: Locale) => void;
@@ -39,13 +40,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    chrome.storage.local.get([SETTINGS_STORAGE_KEY], (result) => {
-      const stored = result[SETTINGS_STORAGE_KEY];
+    (async () => {
+      const raw = await chromeStorageAdapter.getItem(SETTINGS_STORAGE_KEY);
+      let stored: Partial<AppSettings> | null = null;
+      if (raw != null) {
+        try {
+          stored = JSON.parse(raw) as Partial<AppSettings>;
+        } catch {
+          // ignore invalid JSON
+        }
+      }
       if (stored && typeof stored === 'object') {
         setSettings({ ...DEFAULT_SETTINGS, ...stored });
       }
       setLoaded(true);
-    });
+    })();
   }, []);
 
   useEffect(() => {
@@ -56,7 +65,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [loaded, settings.theme]);
 
   const persist = useCallback((next: AppSettings) => {
-    chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+    chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   const update = useCallback(

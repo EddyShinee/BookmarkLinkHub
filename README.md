@@ -42,3 +42,29 @@ src/
 - **Chuột phải trang** → "Add to LinkHub" → Mở tab mới với form thêm bookmark (url/title điền sẵn).
 
 Tính năng chi tiết (boards, categories, tìm kiếm, cài đặt, i18n) mở rộng theo file plan Markdown.
+
+## Deploy bản Web lên Vercel
+
+Bạn có thể chạy cùng giao diện (Login, Dashboard, Landing) dưới dạng **web app** và deploy lên [Vercel](https://vercel.com).  
+
+📄 **Hướng dẫn từng bước:** xem **[DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md)**.
+
+**Tóm tắt nhanh:**
+
+1. **Build bản web** (output trong `dist-web`):
+   ```bash
+   npm run build:web
+   ```
+
+2. **Deploy lên Vercel**
+   - Đẩy code lên GitHub → [vercel.com](https://vercel.com) → **Add New Project** → import repo.
+   - Vercel đọc sẵn `vercel.json` (Build: `npm run build:web`, Output: `dist-web`).
+   - Thêm **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (giống `.env` local).
+
+3. **Chạy thử local** trước khi deploy:
+   ```bash
+   npm run preview:web
+   ```
+   Mở http://localhost:4173.
+
+**Lưu ý:** Bản web không có popup extension hay context menu "Add to LinkHub"; đăng nhập và dữ liệu bookmark dùng chung Supabase với extension.

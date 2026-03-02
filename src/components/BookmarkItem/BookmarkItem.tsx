@@ -1,4 +1,5 @@
 import type { Bookmark } from '../../hooks/useBookmarks';
+import { openLink } from '../../lib/openLink';
 
 interface BookmarkItemProps {
   bookmark: Bookmark;
@@ -7,7 +8,7 @@ interface BookmarkItemProps {
 }
 
 export default function BookmarkItem({ bookmark, onEdit, onDelete }: BookmarkItemProps) {
-  const open = () => chrome.tabs.create({ url: bookmark.url });
+  const open = () => openLink(bookmark.url, false);
 
   return (
     <div className="group flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700">

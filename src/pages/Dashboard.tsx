@@ -36,6 +36,8 @@ import { useSearchShortcut } from '../hooks/useSearchShortcut';
 import { getT } from '../lib/i18n';
 import type { CategorySortOrder } from '../lib/settings';
 import { supabase } from '../lib/supabaseClient';
+import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
+import { openLink } from '../lib/openLink';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
 import { parseNetscapeBookmarksHtml } from '../lib/parseBookmarksHtml';
 
@@ -510,51 +512,23 @@ export default function Dashboard({
   }, [initialOpenAuthenticator]);
 
   useEffect(() => {
-    // Restore last UI state from localStorage (works in dev) and chrome.storage.local (in extension)
     let done = false;
-    try {
-      if (typeof window !== 'undefined') {
-        const storedSidebar = window.localStorage.getItem('lastSidebarOpen');
-        if (storedSidebar !== null) {
-          setSidebarOpen(storedSidebar === 'true');
-        }
-        const storedBoard = window.localStorage.getItem('lastSelectedBoardId');
-        if (storedBoard) {
-          setSelectedBoardId(storedBoard);
+    (async () => {
+      try {
+        const [storedSidebar, storedBoard] = await Promise.all([
+          chromeStorageAdapter.getItem('lastSidebarOpen'),
+          chromeStorageAdapter.getItem('lastSelectedBoardId'),
+        ]);
+        if (storedSidebar === 'true') setSidebarOpen(true);
+        if (storedSidebar === 'false') setSidebarOpen(false);
+        if (storedBoard) setSelectedBoardId(storedBoard);
+      } finally {
+        if (!done) {
+          done = true;
+          setUiRestored(true);
         }
       }
-    } catch {
-      // ignore localStorage errors
-    }
-
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.get(['lastSidebarOpen', 'lastSelectedBoardId'], (result) => {
-          try {
-            if (typeof result.lastSidebarOpen === 'boolean') {
-              setSidebarOpen(result.lastSidebarOpen);
-            }
-            if (typeof result.lastSelectedBoardId === 'string') {
-              setSelectedBoardId(result.lastSelectedBoardId);
-            }
-          } finally {
-            if (!done) {
-              done = true;
-              setUiRestored(true);
-            }
-          }
-        });
-        return;
-      }
-    } catch {
-      // ignore when not running in extension context
-    }
-
-    // If chrome.storage not available, mark as restored after localStorage pass
-    if (!done) {
-      done = true;
-      setUiRestored(true);
-    }
+    })();
   }, []);
 
   useEffect(() => {
@@ -566,30 +540,12 @@ export default function Dashboard({
   }, [boards, selectedBoardId, uiRestored]);
 
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('lastSidebarOpen', String(sidebarOpen));
-      }
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ lastSidebarOpen: sidebarOpen });
-      }
-    } catch {
-      // ignore when not running in extension context
-    }
+    chromeStorageAdapter.setItem('lastSidebarOpen', String(sidebarOpen));
   }, [sidebarOpen]);
 
   useEffect(() => {
     if (!selectedBoardId) return;
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('lastSelectedBoardId', selectedBoardId);
-      }
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ lastSelectedBoardId: selectedBoardId });
-      }
-    } catch {
-      // ignore when not running in extension context
-    }
+    chromeStorageAdapter.setItem('lastSelectedBoardId', selectedBoardId);
   }, [selectedBoardId]);
 
   const focusSearch = useCallback(() => {
@@ -814,14 +770,7 @@ export default function Dashboard({
   const handleSignOut = () => supabase.auth.signOut();
 
   const openBookmark = (url: string) => {
-    if (settings.openLinkIn === 'current_tab') {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) chrome.tabs.update(tabs[0].id, { url });
-        else chrome.tabs.create({ url });
-      });
-    } else {
-      chrome.tabs.create({ url });
-    }
+    openLink(url, settings.openLinkIn === 'current_tab');
   };
 
   const handleExportHtml = async () => {
