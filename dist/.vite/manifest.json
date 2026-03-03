@@ -5,30 +5,30 @@
     "src": "../../../../@crx/manifest",
     "isEntry": true
   },
-  "_Toast-DzBG50FL.js": {
-    "file": "assets/Toast-DzBG50FL.js",
+  "_Toast-BqzHp3Cz.js": {
+    "file": "assets/Toast-BqzHp3Cz.js",
     "name": "Toast",
     "imports": [
-      "_globals-hQ1qZiFa.js"
+      "_globals-CKi8xlkh.js"
     ]
   },
   "_globals-!~{006}~.js": {
-    "file": "assets/globals-Wu5nQV0r.css",
+    "file": "assets/globals-evcCadF6.css",
     "src": "_globals-!~{006}~.js"
   },
-  "_globals-hQ1qZiFa.js": {
-    "file": "assets/globals-hQ1qZiFa.js",
+  "_globals-CKi8xlkh.js": {
+    "file": "assets/globals-CKi8xlkh.js",
     "name": "globals",
     "css": [
-      "assets/globals-Wu5nQV0r.css"
+      "assets/globals-evcCadF6.css"
     ]
   },
-  "_jsQR-sBfk0cS7.js": {
-    "file": "assets/jsQR-sBfk0cS7.js",
+  "_jsQR-CZs4vr6s.js": {
+    "file": "assets/jsQR-CZs4vr6s.js",
     "name": "jsQR",
     "isDynamicEntry": true,
     "imports": [
-      "_globals-hQ1qZiFa.js"
+      "_globals-CKi8xlkh.js"
     ]
   },
   "src/background/index.ts": {
@@ -38,35 +38,35 @@
     "isEntry": true
   },
   "src/newtab/index.html": {
-    "file": "assets/index.html-BOhOoTh1.js",
+    "file": "assets/index.html-CA0AqOtf.js",
     "name": "index.html",
     "src": "src/newtab/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-hQ1qZiFa.js",
-      "_Toast-DzBG50FL.js"
+      "_globals-CKi8xlkh.js",
+      "_Toast-BqzHp3Cz.js"
     ],
     "dynamicImports": [
-      "_jsQR-sBfk0cS7.js"
+      "_jsQR-CZs4vr6s.js"
     ]
   },
   "src/options/index.html": {
-    "file": "assets/index.html-Bu3QVSKb.js",
+    "file": "assets/index.html-Cjb2HuSU.js",
     "name": "index.html",
     "src": "src/options/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-hQ1qZiFa.js"
+      "_globals-CKi8xlkh.js"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-CgvtDJze.js",
+    "file": "assets/index.html-DFkx7-p7.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-hQ1qZiFa.js",
-      "_Toast-DzBG50FL.js"
+      "_globals-CKi8xlkh.js",
+      "_Toast-BqzHp3Cz.js"
     ],
     "css": [
       "assets/index-D4TVfa0X.css"
