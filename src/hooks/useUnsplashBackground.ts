@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createApi } from 'unsplash-js';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 
 type TimeOfDayMode = 'off' | 'by_time_of_day';
@@ -25,6 +26,15 @@ interface UnsplashBackgroundState {
 }
 
 const STORAGE_KEY_PREFIX = 'unsplash_background_';
+
+const UNSPLASH_ACCESS_KEY =
+  (import.meta as any).env?.VITE_UNSPLASH_ACCESS_KEY as string | undefined;
+
+const unsplashClient = UNSPLASH_ACCESS_KEY
+  ? createApi({
+      accessKey: UNSPLASH_ACCESS_KEY,
+    })
+  : null;
 
 function pickQuery(
   baseQuery: string | null | undefined,
@@ -99,38 +109,55 @@ export function useUnsplashBackground(options: UseUnsplashBackgroundOptions) {
       if (!enabled) return;
       const queryToUse = pickQuery(baseQuery, timeOfDayMode, morningQuery, noonQuery, eveningQuery);
 
+      if (!unsplashClient) {
+        setError('VITE_UNSPLASH_ACCESS_KEY is missing. Please configure it in .env');
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
-        // Khi chạy dưới dạng extension, window.location.origin là chrome-extension://...
-        // Ưu tiên dùng VITE_WEB_APP_ORIGIN (domain deploy trên Vercel) nếu được cấu hình.
-        const webOrigin =
-          (import.meta as any).env?.VITE_WEB_APP_ORIGIN || window.location.origin;
-        const url = new URL('/api/unsplash-random', webOrigin);
-        if (queryToUse) {
-          url.searchParams.set('query', queryToUse);
-        }
-        url.searchParams.set('orientation', 'landscape');
-        url.searchParams.set('count', '1');
+        const result = await unsplashClient.photos.getRandom({
+          query: queryToUse,
+          orientation: 'landscape',
+          count: 1,
+        });
 
-        const res = await fetch(url.toString());
-        if (!res.ok) {
-          const text = await res.text();
-          setError(`Unsplash error (${res.status}): ${text}`);
+        if (result.type === 'error') {
+          setError(`Unsplash error: ${result.errors?.join(', ')}`);
           return;
         }
-        const data = await res.json();
 
-        const next: UnsplashBackgroundState = {
-          imageUrl: data.imageUrl ?? null,
-          thumbUrl: data.thumbUrl ?? null,
-          authorName: data.authorName ?? null,
-          authorUsername: data.authorUsername ?? null,
-          authorLink: data.authorLink ?? null,
-          unsplashLink: data.unsplashLink ?? null,
+        const data = result.response;
+        const first = Array.isArray(data) ? data[0] : data;
+
+        if (!first || !first.urls) {
+          setError('Unexpected Unsplash response shape');
+          return;
+        }
+
+        const imageUrl =
+          first.urls.full ||
+          first.urls.regular ||
+          first.urls.raw ||
+          first.urls.small ||
+          first.urls.thumb ||
+          null;
+
+        const thumbUrl =
+          first.urls.thumb || first.urls.small || first.urls.regular || imageUrl;
+
+        const nextState: UnsplashBackgroundState = {
+          imageUrl,
+          thumbUrl,
+          authorName: (first as any).user?.name ?? null,
+          authorUsername: (first as any).user?.username ?? null,
+          authorLink: (first as any).user?.links?.html ?? null,
+          unsplashLink: (first as any).links?.html ?? null,
           lastFetchedAt: Date.now(),
         };
-        persist(next);
+
+        persist(nextState);
       } catch (err: any) {
         setError(err?.message ?? String(err));
       } finally {
