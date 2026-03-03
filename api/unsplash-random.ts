@@ -1,7 +1,9 @@
 import { createApi } from 'unsplash-js';
 
 export default async function handler(req: any, res: any) {
-  const accessKey = process.env.UNSPLASH_ACCESS_KEY;
+  // const accessKey = process.env.UNSPLASH_ACCESS_KEY;
+
+  const accessKey = "D5kPfVX9wZRc-xt6hjcLR9QhgETuVTnk801kaNp9q0I";
 
   if (!accessKey) {
     res.status(500).json({ error: 'UNSPLASH_ACCESS_KEY is not configured on the server.' });
