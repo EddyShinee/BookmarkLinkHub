@@ -22,8 +22,9 @@ export default async function handler(req: any, res: any) {
 
     const result = await unsplash.photos.getRandom({
       query: typeof query === 'string' ? query : undefined,
-      topics: typeof topic === 'string' ? [topic] : undefined,
-      // unsplash-js expects a specific union type for orientation; cast để tránh lỗi TS.
+      // theo kiểu hiện tại của unsplash-js là topicIds
+      topicIds: typeof topic === 'string' ? [topic] : undefined,
+      // unsplash-js expects a specific union type cho orientation
       orientation: (typeof orientation === 'string' ? orientation : 'landscape') as any,
       count: randomCount,
     });
