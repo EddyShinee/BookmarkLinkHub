@@ -31,6 +31,14 @@ interface SettingsContextValue extends AppSettings {
   setShowLandingPomodoro: (v: boolean) => void;
   setShowLandingTodos: (v: boolean) => void;
   setHeaderSidebarColorEffect: (v: boolean) => void;
+  setAutoBackgroundSource: (v: 'none' | 'unsplash') => void;
+  setAutoBackgroundScope: (v: 'landing' | 'dashboard' | 'both') => void;
+  setAutoBackgroundQuery: (v: string | null) => void;
+  setAutoBackgroundIntervalHoursLanding: (v: number | null) => void;
+  setAutoBackgroundTimeOfDayMode: (v: 'off' | 'by_time_of_day') => void;
+  setAutoBackgroundMorningQuery: (v: string | null) => void;
+  setAutoBackgroundNoonQuery: (v: string | null) => void;
+  setAutoBackgroundEveningQuery: (v: string | null) => void;
   persist: () => void;
 }
 
@@ -99,6 +107,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setShowLandingPomodoro: (v) => update({ showLandingPomodoro: v }),
     setShowLandingTodos: (v) => update({ showLandingTodos: v }),
     setHeaderSidebarColorEffect: (v) => update({ headerSidebarColorEffect: v }),
+    setAutoBackgroundSource: (v) => update({ autoBackgroundSource: v }),
+    setAutoBackgroundScope: (v) => update({ autoBackgroundScope: v }),
+    setAutoBackgroundQuery: (v) => update({ autoBackgroundQuery: v }),
+    setAutoBackgroundIntervalHoursLanding: (v) => update({ autoBackgroundIntervalHoursLanding: v }),
+    setAutoBackgroundTimeOfDayMode: (v) => update({ autoBackgroundTimeOfDayMode: v }),
+    setAutoBackgroundMorningQuery: (v) => update({ autoBackgroundMorningQuery: v }),
+    setAutoBackgroundNoonQuery: (v) => update({ autoBackgroundNoonQuery: v }),
+    setAutoBackgroundEveningQuery: (v) => update({ autoBackgroundEveningQuery: v }),
     persist: () => persist(settings),
   };
 

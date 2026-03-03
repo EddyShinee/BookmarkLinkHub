@@ -5,6 +5,7 @@ import { getT } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabaseClient';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
+import { useUnsplashBackground } from '../hooks/useUnsplashBackground';
 
 const DEFAULT_LANDING_BACKGROUND =
   'https://images.unsplash.com/photo-1769878539345-2d8c4769209d?q=80&w=1483&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D';
@@ -199,6 +200,28 @@ export default function Landing() {
   const gridColsClass = 'grid-cols-1 md:grid-cols-3';
   const gridRowsClass = 'max-md:[grid-auto-rows:minmax(200px,auto)] md:[grid-auto-rows:40vh]';
 
+  const unsplashEnabled =
+    settings.autoBackgroundSource === 'unsplash' &&
+    (settings.autoBackgroundScope === 'landing' ||
+      settings.autoBackgroundScope === 'both');
+
+  const {
+    imageUrl: unsplashImageUrl,
+    refresh: refreshUnsplash,
+  } = useUnsplashBackground({
+    enabled: unsplashEnabled,
+    scope: 'landing',
+    baseQuery: settings.autoBackgroundQuery ?? null,
+    timeOfDayMode: settings.autoBackgroundTimeOfDayMode ?? 'off',
+    morningQuery: settings.autoBackgroundMorningQuery ?? null,
+    noonQuery: settings.autoBackgroundNoonQuery ?? null,
+    eveningQuery: settings.autoBackgroundEveningQuery ?? null,
+    intervalHours: settings.autoBackgroundIntervalHoursLanding ?? null,
+  });
+
+  const finalBackgroundImageUrl =
+    (unsplashEnabled && unsplashImageUrl) || effectiveBackgroundImageUrl;
+
   return (
     <div className="fixed inset-0 overflow-hidden">
       <div
@@ -206,7 +229,7 @@ export default function Landing() {
         style={
           hasImage
             ? {
-                backgroundImage: `url(${effectiveBackgroundImageUrl})`,
+                backgroundImage: `url(${finalBackgroundImageUrl})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
@@ -235,6 +258,38 @@ export default function Landing() {
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (unsplashEnabled) {
+                  refreshUnsplash();
+                }
+              }}
+              disabled={!unsplashEnabled}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
+                unsplashEnabled
+                  ? 'bg-black/35 border-white/25 text-white hover:bg-black/55'
+                  : 'bg-black/20 border-white/10 text-slate-400 cursor-not-allowed opacity-60'
+              }`}
+              title={
+                unsplashEnabled
+                  ? settings.locale === 'vi'
+                    ? 'Đổi background ngay lập tức (Unsplash)'
+                    : 'Change background now (Unsplash)'
+                  : settings.locale === 'vi'
+                  ? 'Bật Unsplash background trong Cài đặt để dùng nút này'
+                  : 'Enable Unsplash background in Settings to use this button'
+              }
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                refresh
+              </span>
+              <span className="hidden sm:inline">
+                {settings.locale === 'vi'
+                  ? 'Đổi background'
+                  : 'Change background'}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => setBgSettingsOpen((o) => !o)}

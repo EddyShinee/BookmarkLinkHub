@@ -177,7 +177,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
 
             </div>
 
-            {/* Cột 2: Màu nền & Số cột */}
+            {/* Cột 2: Màu nền & Auto background */}
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.backgroundColor}</SettingLabel>
@@ -277,7 +277,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                     </>
                   )}
 
-                  <div className="mt-2 pt-2 border-t border-white/5">
+                  <div className="mt-2 pt-2 border-t border-white/5 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">
                         {t.headerSidebarColorEffect}
@@ -293,6 +293,160 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       >
                         {s.headerSidebarColorEffect !== false ? t.on : t.off}
                       </button>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t border-white/5 space-y-2">
+                      <p className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">
+                        {t.autoBackgroundSectionTitle}
+                      </p>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-text-secondary">{t.autoBackgroundSource}</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => s.setAutoBackgroundSource('none')}
+                              className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                                (s.autoBackgroundSource ?? 'none') === 'none'
+                                  ? 'bg-accent/20 border-accent text-accent'
+                                  : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                              }`}
+                            >
+                              {t.autoBackgroundSourceNone}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => s.setAutoBackgroundSource('unsplash')}
+                              className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                                s.autoBackgroundSource === 'unsplash'
+                                  ? 'bg-accent/20 border-accent text-accent'
+                                  : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                              }`}
+                            >
+                              {t.autoBackgroundSourceUnsplash}
+                            </button>
+                          </div>
+                        </div>
+
+                        {s.autoBackgroundSource === 'unsplash' && (
+                          <div className="space-y-1.5">
+                            <div className="space-y-1">
+                              <span className="text-[11px] text-text-secondary">{t.autoBackgroundScope}</span>
+                              <div className="flex flex-wrap gap-1">
+                                {(['landing', 'dashboard', 'both'] as const).map((scope) => {
+                                  const label =
+                                    scope === 'landing'
+                                      ? t.autoBackgroundScopeLanding
+                                      : scope === 'dashboard'
+                                      ? t.autoBackgroundScopeDashboard
+                                      : t.autoBackgroundScopeBoth;
+                                  const active = (s.autoBackgroundScope ?? 'landing') === scope;
+                                  return (
+                                    <button
+                                      key={scope}
+                                      type="button"
+                                      onClick={() => s.setAutoBackgroundScope(scope)}
+                                      className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                                        active
+                                          ? 'bg-accent/20 border-accent text-accent'
+                                          : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[11px] text-text-secondary">{t.autoBackgroundQueryLabel}</span>
+                              <input
+                                type="text"
+                                value={s.autoBackgroundQuery ?? ''}
+                                onChange={(e) => s.setAutoBackgroundQuery(e.target.value || null)}
+                                placeholder="beach, mountain, workspace..."
+                                className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-text-secondary">
+                                {t.autoBackgroundIntervalHoursLabel}
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={168}
+                                value={s.autoBackgroundIntervalHoursLanding ?? 0}
+                                onChange={(e) =>
+                                  s.setAutoBackgroundIntervalHoursLanding(
+                                    e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0)
+                                  )
+                                }
+                                className="w-16 px-2 py-1 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 outline-none focus:ring-1 focus:ring-white/60 text-center"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-text-secondary">
+                                  {t.autoBackgroundTimeOfDayMode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    s.setAutoBackgroundTimeOfDayMode(
+                                      (s.autoBackgroundTimeOfDayMode ?? 'off') === 'by_time_of_day'
+                                        ? 'off'
+                                        : 'by_time_of_day'
+                                    )
+                                  }
+                                  className={`min-w-[60px] px-3 py-1 rounded-full text-[11px] font-medium transition ${
+                                    (s.autoBackgroundTimeOfDayMode ?? 'off') === 'by_time_of_day'
+                                      ? 'bg-accent/20 text-accent border border-accent/40'
+                                      : 'bg-white/10 text-text-muted hover:bg-white/15 border border-white/10'
+                                  }`}
+                                >
+                                  {(s.autoBackgroundTimeOfDayMode ?? 'off') === 'by_time_of_day' ? t.on : t.off}
+                                </button>
+                              </label>
+
+                              {(s.autoBackgroundTimeOfDayMode ?? 'off') === 'by_time_of_day' && (
+                                <div className="space-y-1.5 mt-1">
+                                  <input
+                                    type="text"
+                                    value={s.autoBackgroundMorningQuery ?? ''}
+                                    onChange={(e) =>
+                                      s.setAutoBackgroundMorningQuery(e.target.value || null)
+                                    }
+                                    placeholder={t.autoBackgroundMorningQuery}
+                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={s.autoBackgroundNoonQuery ?? ''}
+                                    onChange={(e) =>
+                                      s.setAutoBackgroundNoonQuery(e.target.value || null)
+                                    }
+                                    placeholder={t.autoBackgroundNoonQuery}
+                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={s.autoBackgroundEveningQuery ?? ''}
+                                    onChange={(e) =>
+                                      s.setAutoBackgroundEveningQuery(e.target.value || null)
+                                    }
+                                    placeholder={t.autoBackgroundEveningQuery}
+                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

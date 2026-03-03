@@ -24,6 +24,7 @@ import { useCategories } from '../hooks/useCategories';
 import type { Bookmark, Category, Board } from '../hooks/useBookmarks';
 import { useSettings } from '../contexts/SettingsContext';
 import SettingsModal from '../components/SettingsModal';
+import { useUnsplashBackground } from '../hooks/useUnsplashBackground';
 import BoardModal from '../components/BoardModal';
 import ITToolboxModal from '../components/ITToolboxModal';
 import AuthenticatorModal from '../components/AuthenticatorModal';
@@ -1358,13 +1359,32 @@ export default function Dashboard({
     setDropBookmarkTarget(null);
   };
 
+  const unsplashEnabled =
+    settings.autoBackgroundSource === 'unsplash' &&
+    (settings.autoBackgroundScope === 'dashboard' ||
+      settings.autoBackgroundScope === 'both');
+
+  const { imageUrl: unsplashImageUrl } = useUnsplashBackground({
+    enabled: unsplashEnabled,
+    scope: 'dashboard',
+    baseQuery: settings.autoBackgroundQuery ?? null,
+    timeOfDayMode: settings.autoBackgroundTimeOfDayMode ?? 'off',
+    morningQuery: settings.autoBackgroundMorningQuery ?? null,
+    noonQuery: settings.autoBackgroundNoonQuery ?? null,
+    eveningQuery: settings.autoBackgroundEveningQuery ?? null,
+    intervalHours: settings.autoBackgroundIntervalHoursLanding ?? null,
+  });
+
+  const dashboardBackgroundImageUrl =
+    (unsplashEnabled && unsplashImageUrl) || settings.backgroundImageUrl || null;
+
   return (
     <div
       className="bg-main font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
       style={
-        settings.backgroundMode === 'image' && settings.backgroundImageUrl
+        settings.backgroundMode === 'image' && dashboardBackgroundImageUrl
           ? {
-              backgroundImage: `url('${settings.backgroundImageUrl}')`,
+              backgroundImage: `url('${dashboardBackgroundImageUrl}')`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',

@@ -39,6 +39,17 @@ export interface AppSettings {
   showLandingTodos?: boolean;
   /** Bật/tắt màu effect (tông nền) cho header và sidebar trên trang bookmark */
   headerSidebarColorEffect?: boolean;
+  /** Cấu hình auto background (Unsplash) */
+  autoBackgroundSource?: 'none' | 'unsplash';
+  autoBackgroundScope?: 'landing' | 'dashboard' | 'both';
+  autoBackgroundQuery?: string | null;
+  /** Số giờ tự đổi ảnh cho Landing (0 hoặc null = không tự động) */
+  autoBackgroundIntervalHoursLanding?: number | null;
+  /** Đổi ảnh theo buổi sáng / trưa / tối */
+  autoBackgroundTimeOfDayMode?: 'off' | 'by_time_of_day';
+  autoBackgroundMorningQuery?: string | null;
+  autoBackgroundNoonQuery?: string | null;
+  autoBackgroundEveningQuery?: string | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -63,6 +74,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showLandingPomodoro: true,
   showLandingTodos: true,
   headerSidebarColorEffect: true,
+  autoBackgroundSource: 'none',
+  autoBackgroundScope: 'landing',
+  autoBackgroundQuery: null,
+  autoBackgroundIntervalHoursLanding: null,
+  autoBackgroundTimeOfDayMode: 'off',
+  autoBackgroundMorningQuery: null,
+  autoBackgroundNoonQuery: null,
+  autoBackgroundEveningQuery: null,
 };
 
 export const BACKGROUND_COLORS = [
