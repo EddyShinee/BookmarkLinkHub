@@ -4,6 +4,8 @@ import { getT } from '../lib/i18n';
 
 const CATEGORY_COLORS = [
   '#818CF8', '#10B981', '#A855F7', '#FB923C', '#EC4899', '#3B82F6', '#EAB308', '#06B6D4', '#F43F5E', '#8B5CF6',
+  '#0EA5E9', '#22C55E', '#F97316', '#6366F1', '#14B8A6', '#EF4444', '#84CC16', '#7C3AED', '#0284C7', '#DC2626',
+  '#64748B', '#FACC15', '#E11D48', '#059669',
 ];
 
 export interface BoardOption {
@@ -152,7 +154,7 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
             </div>
             {useCustomColor && (
               <>
-                <div className="flex flex-wrap gap-1.5 mb-2">
+                <div className="grid grid-cols-8 gap-1.5 mb-2">
                   {CATEGORY_COLORS.map((c) => (
                     <button
                       key={c}
@@ -173,7 +175,7 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
                   <input
                     type="range"
                     min={5}
-                    max={40}
+                    max={100}
                     step={1}
                     value={bgOpacity}
                     onChange={(e) => setBgOpacity(Number(e.target.value))}

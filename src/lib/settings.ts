@@ -37,6 +37,8 @@ export interface AppSettings {
   timeFormat: TimeFormat;
   showLandingPomodoro?: boolean;
   showLandingTodos?: boolean;
+  /** Bật/tắt màu effect (tông nền) cho header và sidebar trên trang bookmark */
+  headerSidebarColorEffect?: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -60,9 +62,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   timeFormat: '24',
   showLandingPomodoro: true,
   showLandingTodos: true,
+  headerSidebarColorEffect: true,
 };
 
 export const BACKGROUND_COLORS = [
   '#0F172A', '#1e3a5f', '#312e81', '#4c1d95', '#14532d', '#166534',
   '#0c4a6e', '#1e293b', '#422006', '#1c1917', '#18181b', '#3f3f46',
+  '#1e40af', '#581c87', '#134e4a', '#164e63', '#713f12', '#7f1d1d',
 ];

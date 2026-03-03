@@ -30,6 +30,7 @@ interface SettingsContextValue extends AppSettings {
   setTimeFormat: (v: TimeFormat) => void;
   setShowLandingPomodoro: (v: boolean) => void;
   setShowLandingTodos: (v: boolean) => void;
+  setHeaderSidebarColorEffect: (v: boolean) => void;
   persist: () => void;
 }
 
@@ -97,6 +98,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setTimeFormat: (v) => update({ timeFormat: v }),
     setShowLandingPomodoro: (v) => update({ showLandingPomodoro: v }),
     setShowLandingTodos: (v) => update({ showLandingTodos: v }),
+    setHeaderSidebarColorEffect: (v) => update({ headerSidebarColorEffect: v }),
     persist: () => persist(settings),
   };
 

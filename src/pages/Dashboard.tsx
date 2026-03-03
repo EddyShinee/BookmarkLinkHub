@@ -1359,12 +1359,48 @@ export default function Dashboard({
   };
 
   return (
-    <div className="bg-main font-display text-text-primary h-screen overflow-hidden flex selection:bg-accent selection:text-white">
+    <div
+      className="bg-main font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
+      style={
+        settings.backgroundMode === 'image' && settings.backgroundImageUrl
+          ? {
+              backgroundImage: `url('${settings.backgroundImageUrl}')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }
+          : undefined
+      }
+    >
+      <div
+        className="absolute inset-0 z-0 backdrop-blur-[2px]"
+        style={{
+          backgroundColor:
+            settings.theme === 'light'
+              ? `rgba(240, 240, 240, ${(settings.backgroundOverlayOpacity ?? 90) / 100})`
+              : `${settings.backgroundColor}${
+                  Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
+                    .toString(16)
+                    .padStart(2, '0')
+                }`,
+        }}
+      />
       {/* Sidebar */}
       <aside
-        className={`sidebar-gradient border-r border-white/10 flex flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
+        className={`border-r border-white/10 flex flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={
+          settings.headerSidebarColorEffect !== false
+            ? {
+                backgroundColor: 'transparent',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }
+            : settings.theme === 'light'
+            ? { backgroundColor: '#e5e5e5' }
+            : { backgroundColor: '#1E293B' }
+        }
       >
         <div className="h-12 flex items-center px-4 border-b border-white/10">
           <div className="flex items-center gap-2 text-accent group cursor-pointer">
@@ -1501,29 +1537,24 @@ export default function Dashboard({
 
       {/* Main */}
       <main
-        className={`flex-1 flex flex-col min-w-0 bg-cover bg-center relative transition-[margin] duration-200 ${
+        className={`flex-1 flex flex-col min-w-0 bg-cover bg-center relative z-10 transition-[margin] duration-200 ${
           sidebarOpen ? 'md:ml-64' : 'md:ml-0'
         }`}
-        style={
-          settings.backgroundMode === 'image' && settings.backgroundImageUrl
-            ? { backgroundImage: `url('${settings.backgroundImageUrl}')` }
-            : undefined
-        }
       >
-        <div
-          className="absolute inset-0 backdrop-blur-[2px] z-0"
-          style={{
-            backgroundColor:
-              settings.theme === 'light'
-                ? `rgba(240, 240, 240, ${(settings.backgroundOverlayOpacity ?? 90) / 100})`
-                : `${settings.backgroundColor}${
-                    Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
-                      .toString(16)
-                      .padStart(2, '0')
-                  }`,
-          }}
-        />
-        <header className="h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b border-white/10 bg-main/80 backdrop-blur-md">
+        <header
+          className="h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b border-white/10"
+          style={
+            settings.headerSidebarColorEffect !== false
+              ? {
+                  backgroundColor: 'transparent',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                }
+              : settings.theme === 'light'
+              ? { backgroundColor: '#e5e5e5' }
+              : { backgroundColor: '#1E293B' }
+          }
+        >
           <div className="flex items-center flex-1 max-w-md">
             <button
               type="button"

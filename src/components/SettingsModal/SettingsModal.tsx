@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { useSettings } from '../../contexts/SettingsContext';
 import { getT } from '../../lib/i18n';
 import { BACKGROUND_COLORS } from '../../lib/settings';
-import { supabaseUrlDisplay } from '../../lib/supabaseClient';
 
 interface SettingsModalProps {
   open: boolean;
@@ -138,21 +137,51 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                 </div>
               </SettingCard>
 
-
               <SettingCard>
-                <SettingLabel>Supabase</SettingLabel>
-                <p className="text-[11px] text-text-muted break-all" title={supabaseUrlDisplay}>
-                  {supabaseUrlDisplay}
-                </p>
-                <p className="text-[10px] text-text-muted mt-1">{t.supabaseUrlHint}</p>
+                <SettingLabel>{t.categorySortOrder}</SettingLabel>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_asc')}`}
+                    >
+                      {t.categorySortCreatedAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_desc')}`}
+                    >
+                      {t.categorySortCreatedDesc}
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_asc')}`}
+                    >
+                      {t.categorySortNameAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_desc')}`}
+                    >
+                      {t.categorySortNameDesc}
+                    </button>
+                  </div>
+                </div>
               </SettingCard>
+
             </div>
 
             {/* Cột 2: Màu nền & Số cột */}
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.backgroundColor}</SettingLabel>
-                <div className="flex flex-wrap gap-1.5 mb-2">
+                <div className="grid grid-cols-6 gap-1.5 mb-2">
                   {BACKGROUND_COLORS.map((color) => (
                     <button
                       key={color}
@@ -247,9 +276,32 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       </div>
                     </>
                   )}
+
+                  <div className="mt-2 pt-2 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">
+                        {t.headerSidebarColorEffect}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => s.setHeaderSidebarColorEffect(!(s.headerSidebarColorEffect ?? true))}
+                        className={`min-w-[60px] px-3 py-1 rounded-full text-[11px] font-medium transition ${
+                          s.headerSidebarColorEffect !== false
+                            ? 'bg-accent/20 text-accent border border-accent/40'
+                            : 'bg-white/10 text-text-muted hover:bg-white/15 border border-white/10'
+                        }`}
+                      >
+                        {s.headerSidebarColorEffect !== false ? t.on : t.off}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </SettingCard>
 
+            </div>
+
+            {/* Cột 3: Bố cục & Màu category & Mở link */}
+            <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.categoryColumns}</SettingLabel>
                 <div className="flex gap-1.5 flex-wrap">
@@ -265,47 +317,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                   ))}
                 </div>
               </SettingCard>
-              <SettingCard>
-                <SettingLabel>{t.categorySortOrder}</SettingLabel>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('created_asc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_asc')}`}
-                    >
-                      {t.categorySortCreatedAsc}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('created_desc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_desc')}`}
-                    >
-                      {t.categorySortCreatedDesc}
-                    </button>
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('name_asc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_asc')}`}
-                    >
-                      {t.categorySortNameAsc}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('name_desc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_desc')}`}
-                    >
-                      {t.categorySortNameDesc}
-                    </button>
-                  </div>
-                </div>
-              </SettingCard>
-            </div>
 
-            {/* Cột 3: Bố cục & Màu category & Mở link */}
-            <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.categoryCardHeight}</SettingLabel>
                 <div className="flex gap-1.5">
