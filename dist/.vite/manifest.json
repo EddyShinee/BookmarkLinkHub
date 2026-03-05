@@ -5,8 +5,8 @@
     "src": "../../../../@crx/manifest",
     "isEntry": true
   },
-  "_Toast-BqzHp3Cz.js": {
-    "file": "assets/Toast-BqzHp3Cz.js",
+  "_Toast-BSY4vQau.js": {
+    "file": "assets/Toast-BSY4vQau.js",
     "name": "Toast",
     "imports": [
       "_globals-CKi8xlkh.js"
@@ -38,13 +38,13 @@
     "isEntry": true
   },
   "src/newtab/index.html": {
-    "file": "assets/index.html-CA0AqOtf.js",
+    "file": "assets/index.html-VLgK1b_i.js",
     "name": "index.html",
     "src": "src/newtab/index.html",
     "isEntry": true,
     "imports": [
       "_globals-CKi8xlkh.js",
-      "_Toast-BqzHp3Cz.js"
+      "_Toast-BSY4vQau.js"
     ],
     "dynamicImports": [
       "_jsQR-CZs4vr6s.js"
@@ -60,13 +60,13 @@
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/index.html-DFkx7-p7.js",
+    "file": "assets/index.html-FzjPICOe.js",
     "name": "index.html",
     "src": "src/popup/index.html",
     "isEntry": true,
     "imports": [
       "_globals-CKi8xlkh.js",
-      "_Toast-BqzHp3Cz.js"
+      "_Toast-BSY4vQau.js"
     ],
     "css": [
       "assets/index-D4TVfa0X.css"

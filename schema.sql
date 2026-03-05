@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     locale TEXT DEFAULT 'vi' CHECK (locale IN ('vi', 'en')),
     background_color TEXT DEFAULT '#0F172A',
     start_on_landing BOOLEAN NOT NULL DEFAULT TRUE,
+    settings_json JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

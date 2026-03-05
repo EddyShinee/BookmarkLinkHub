@@ -12,6 +12,7 @@ import {
   type TimeFormat,
 } from '../lib/settings';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
+import { supabase } from '../lib/supabaseClient';
 
 interface SettingsContextValue extends AppSettings {
   setLocale: (v: Locale) => void;
@@ -66,6 +67,52 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Sau khi đã load từ chrome storage, đồng bộ từ Supabase (nếu có user đăng nhập)
+  useEffect(() => {
+    if (!loaded) return;
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('locale, background_color, start_on_landing, settings_json')
+          .eq('id', user.id)
+          .single();
+
+        if (error || !data) return;
+
+        const serverPatch: Partial<AppSettings> = {};
+
+        if (data.locale) {
+          serverPatch.locale = data.locale as Locale;
+        }
+        if (data.background_color) {
+          serverPatch.backgroundColor = data.background_color as string;
+        }
+        if (typeof data.start_on_landing === 'boolean') {
+          serverPatch.startOnLanding = data.start_on_landing as boolean;
+        }
+        if (data.settings_json && typeof data.settings_json === 'object') {
+          Object.assign(serverPatch, data.settings_json as Partial<AppSettings>);
+        }
+
+        if (Object.keys(serverPatch).length === 0) return;
+
+        setSettings((prev) => {
+          const next = { ...prev, ...serverPatch };
+          chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+          return next;
+        });
+      } catch {
+        // ignore sync error
+      }
+    })();
+  }, [loaded]);
+
   useEffect(() => {
     if (!loaded) return;
     const root = document.documentElement;
@@ -75,6 +122,28 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const persist = useCallback((next: AppSettings) => {
     chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+
+    // Đồng bộ lên Supabase (nếu user đã đăng nhập)
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        await supabase
+          .from('profiles')
+          .update({
+            locale: next.locale,
+            background_color: next.backgroundColor,
+            start_on_landing: next.startOnLanding,
+            settings_json: next,
+          })
+          .eq('id', user.id);
+      } catch {
+        // ignore sync error
+      }
+    })();
   }, []);
 
   const update = useCallback(
