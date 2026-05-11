@@ -106,7 +106,7 @@ export function MoveBookmarkModal({
             />
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="scrollbar-none flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-2 pb-2.5">
             {loading ? (
               <p className="text-[11px] text-text-muted py-4 text-center">{t.loadingAuth}</p>

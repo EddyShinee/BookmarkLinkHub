@@ -140,7 +140,7 @@ export function DashboardSidebar({
             <span className="material-icons-round text-base">add_circle_outline</span>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
+        <div className="scrollbar-none flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
           {boardsLoading && boards.length === 0 && (
             <div className="px-1 py-2 space-y-2" aria-hidden>
               {[0, 1, 2, 3].map((i) => (

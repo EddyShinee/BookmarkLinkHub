@@ -1419,7 +1419,7 @@ export default function Dashboard({
           persistBoardSortOrder={persistBoardSortOrder}
         />
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
+        <div className="scrollbar-none flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
           {boardsError && (
             <p className="text-red-400 text-xs py-3">{boardsError.message}</p>
           )}
