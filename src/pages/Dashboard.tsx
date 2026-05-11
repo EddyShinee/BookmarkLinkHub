@@ -39,6 +39,12 @@ import type { CategorySortOrder } from '../lib/settings';
 import { supabase } from '../lib/supabaseClient';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { openLink } from '../lib/openLink';
+import {
+  normalizeSearchString,
+  parseSpotlightQuery,
+  scoreBookmarkSearch,
+  stripSearchFilterSyntax,
+} from '../lib/searchBookmarks';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
 import { parseNetscapeBookmarksHtml } from '../lib/parseBookmarksHtml';
 
@@ -75,7 +81,7 @@ function ColumnDroppable({
         className ?? '',
         'rounded-xl transition-all duration-200',
         isOver
-          ? 'bg-accent/10 ring-2 ring-accent/40 ring-offset-1 ring-offset-transparent min-h-[120px]'
+          ? 'bg-accent/15 ring-2 ring-accent/50 ring-offset-0 min-h-[120px] transition-[box-shadow,background-color] duration-150'
           : '',
       ].join(' ')}
     >
@@ -98,6 +104,39 @@ const DROP_INDICATOR_CLASS =
   'absolute left-0 right-0 h-[3px] rounded-full bg-accent pointer-events-none z-10 drop-indicator-line';
 const DROP_INDICATOR_BLOCK_CLASS =
   'h-[3px] rounded-full bg-accent pointer-events-none flex-shrink-0 drop-indicator-line';
+
+function categoryGridColsClass(n: number): string {
+  if (n === 2) return 'category-grid-cols-2';
+  if (n === 3) return 'category-grid-cols-3';
+  if (n === 5) return 'category-grid-cols-5';
+  if (n === 6) return 'category-grid-cols-6';
+  return 'category-grid-cols-4';
+}
+
+function CategoryGridSkeleton({ numCols }: { numCols: number }) {
+  const n = Math.min(6, Math.max(2, Math.round(numCols)));
+  return (
+    <div
+      className={`category-grid ${categoryGridColsClass(n)}`}
+      aria-busy="true"
+      aria-label="Loading"
+    >
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} className="category-grid-item space-y-3">
+          <div className="rounded-xl border border-white/10 overflow-hidden glass-panel min-h-[200px]">
+            <div className="h-10 border-b border-white/10 skeleton-shimmer" />
+            <div className="p-3 space-y-2.5">
+              <div className="h-9 skeleton-shimmer rounded-lg" />
+              <div className="h-9 skeleton-shimmer rounded-lg" />
+              <div className="h-9 skeleton-shimmer rounded-lg" />
+              <div className="h-9 skeleton-shimmer rounded-lg w-4/5" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function SortableCategoryCard({
   category,
@@ -344,18 +383,36 @@ export default function Dashboard({
   const searchTerm = searchQuery.trim().toLowerCase();
   const globalSearchResults = useMemo(() => {
     if (!searchTerm) return null;
-    const boardMatches = boards.filter((b) =>
-      b.name.toLowerCase().includes(searchTerm)
-    );
-    const categoryMatches = allCategories.filter((c) =>
-      c.name.toLowerCase().includes(searchTerm)
-    );
-    const bookmarkMatches = allBookmarks.filter((b) =>
-      (b.title ?? '').toLowerCase().includes(searchTerm) ||
-      (b.url ?? '').toLowerCase().includes(searchTerm)
-    );
+    const pn = parseSpotlightQuery(searchQuery);
+    const needle =
+      normalizeSearchString(pn.board || pn.text || stripSearchFilterSyntax(searchQuery));
+
+    const boardMatches = boards.filter((b) => {
+      const nm = normalizeSearchString(b.name);
+      return !needle || nm.includes(needle);
+    });
+    const categoryMatches = allCategories.filter((c) => {
+      const nm = normalizeSearchString(c.name);
+      return !needle || nm.includes(needle);
+    });
+    const bookmarkMatches = allBookmarks.filter((bm) => {
+      const cat = allCategories.find((c) => c.id === bm.category_id);
+      const board = cat ? boards.find((br) => br.id === cat.board_id) : undefined;
+      const s = scoreBookmarkSearch(
+        {
+          title: bm.title ?? '',
+          url: bm.url ?? '',
+          boardName: board?.name,
+          categoryName: cat?.name,
+          description: bm.description,
+          tags: bm.tags,
+        },
+        pn
+      );
+      return s > 0;
+    });
     return { boardMatches, categoryMatches, bookmarkMatches };
-  }, [searchTerm, boards, allCategories, allBookmarks]);
+  }, [searchTerm, searchQuery, boards, allCategories, allBookmarks]);
 
   const spotlightItems: SpotlightItem[] = useMemo(() => {
     if (!allBookmarks.length) return [];
@@ -368,6 +425,9 @@ export default function Dashboard({
         url: bm.url,
         boardName: board?.name,
         categoryName: cat?.name,
+        description: bm.description,
+        tags: bm.tags,
+        updatedAt: bm.updated_at,
       };
     });
   }, [allBookmarks, allCategories, boards]);
@@ -1378,6 +1438,14 @@ export default function Dashboard({
   const dashboardBackgroundImageUrl =
     (unsplashEnabled && unsplashImageUrl) || settings.backgroundImageUrl || null;
 
+  const tDash = getT(settings.locale);
+  const dashboardBookmarkTotal = useMemo(() => allBookmarks.length, [allBookmarks]);
+
+  const showCategoryGridSkeleton =
+    !!selectedBoardId &&
+    !searchTerm.trim() &&
+    ((categoriesLoading && categories.length === 0) || (columnsLoading && boardColumns.length === 0));
+
   return (
     <div
       className="bg-main font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
@@ -1403,6 +1471,16 @@ export default function Dashboard({
                     .toString(16)
                     .padStart(2, '0')
                 }`,
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        aria-hidden
+        style={{
+          background:
+            settings.theme === 'light'
+              ? 'radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.5), transparent 52%), radial-gradient(ellipse 65% 45% at 100% 100%, rgba(0,0,0,0.06), transparent)'
+              : 'radial-gradient(ellipse 88% 50% at 50% -8%, rgba(129,140,248,0.14), transparent 48%), radial-gradient(ellipse 70% 55% at 100% 100%, rgba(0,0,0,0.42), transparent)',
         }}
       />
       {/* Sidebar */}
@@ -1466,6 +1544,13 @@ export default function Dashboard({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
+          {boardsLoading && boards.length === 0 && (
+            <div className="px-1 py-2 space-y-2" aria-hidden>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-9 rounded-lg skeleton-shimmer border border-white/5" />
+              ))}
+            </div>
+          )}
           {/* Boards loading: hiển thị Toast thay vì text inline */}
           {boards.map((board, boardIndex) => (
             <React.Fragment key={board.id}>
@@ -1550,7 +1635,24 @@ export default function Dashboard({
             </React.Fragment>
           ))}
           {!boardsLoading && boards.length === 0 && (
-            <p className="px-2 py-1.5 text-text-muted text-xs">{getT(settings.locale).noBoardsYet}</p>
+            <div className="mx-1 my-2 rounded-xl border border-dashed border-white/15 bg-white/[0.04] p-4 text-center">
+              <span className="material-symbols-outlined text-[36px] text-accent/85 mb-2 block" aria-hidden>
+                dashboard_customize
+              </span>
+              <p className="text-xs font-semibold text-white">{tDash.emptyBoardsTitle}</p>
+              <p className="text-[11px] text-text-muted mt-1.5 mb-3 leading-relaxed">{tDash.emptyBoardsBody}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setBoardEditing(null);
+                  setBoardModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent/25 border border-accent/40 text-accent text-xs font-medium px-3 py-2 hover:bg-accent/35 transition"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                {tDash.emptyBoardsCta}
+              </button>
+            </div>
           )}
         </div>
       </aside>
@@ -1591,12 +1693,24 @@ export default function Dashboard({
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search your bookmarks..."
+                placeholder={getT(settings.locale).searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-white/5 border border-white/10 text-xs text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40 block w-full pl-9 pr-3 py-1.5 rounded-lg transition-all"
               />
             </div>
+          </div>
+          <div className="hidden lg:flex items-center gap-1.5 mx-1 text-[10px] tabular-nums flex-shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/90">
+              <span className="material-symbols-outlined text-[14px] text-accent/90">view_kanban</span>
+              <span className="font-semibold text-white">{boards.length}</span>
+              <span className="text-text-muted font-normal">{tDash.dashboardStatBoards}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/90">
+              <span className="material-symbols-outlined text-[14px] text-accent/90">bookmark</span>
+              <span className="font-semibold text-white">{dashboardBookmarkTotal}</span>
+              <span className="text-text-muted font-normal">{tDash.dashboardStatBookmarks}</span>
+            </span>
           </div>
           <div className="flex items-center gap-2 ml-2 md:ml-4">
             <button
@@ -1863,9 +1977,11 @@ export default function Dashboard({
               {!searchDataLoading && globalSearchResults && (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">Boards</p>
+                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                      {tDash.searchGlobalBoards}
+                    </p>
                     {globalSearchResults.boardMatches.length === 0 ? (
-                      <p className="text-xs text-text-muted/70">Không có board phù hợp.</p>
+                      <p className="text-xs text-text-muted/70">{tDash.searchGlobalNoBoard}</p>
                     ) : (
                       <ul className="space-y-1.5">
                         {globalSearchResults.boardMatches.map((b) => (
@@ -1876,7 +1992,7 @@ export default function Dashboard({
                               className="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex items-center justify-between"
                             >
                               <span className="truncate">{b.name}</span>
-                              <span className="text-[11px] text-text-muted ml-2">Board</span>
+                              <span className="text-[11px] text-text-muted ml-2">{tDash.searchGlobalBoards}</span>
                             </button>
                           </li>
                         ))}
@@ -1885,10 +2001,15 @@ export default function Dashboard({
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
-                      {boards.find((b) => b.id === selectedBoardId)?.name ?? 'Categories'}
+                      {tDash.searchGlobalCategories}
+                      {selectedBoardId && boards.find((b) => b.id === selectedBoardId)?.name ? (
+                        <span className="font-normal text-text-muted normal-case ml-1">
+                          · {boards.find((b) => b.id === selectedBoardId)?.name}
+                        </span>
+                      ) : null}
                     </p>
                     {globalSearchResults.categoryMatches.length === 0 ? (
-                      <p className="text-xs text-text-muted/70">Không có category phù hợp.</p>
+                      <p className="text-xs text-text-muted/70">{tDash.searchGlobalNoCategory}</p>
                     ) : (
                       <ul className="space-y-1.5">
                         {globalSearchResults.categoryMatches.map((c) => {
@@ -1902,7 +2023,7 @@ export default function Dashboard({
                               >
                                 <span className="truncate">{c.name}</span>
                                 <span className="text-[11px] text-text-muted ml-2 truncate max-w-[160px]">
-                                  {board?.name ?? 'Board'}
+                                  {board?.name ?? tDash.searchGlobalBoards}
                                 </span>
                               </button>
                             </li>
@@ -1912,9 +2033,11 @@ export default function Dashboard({
                     )}
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">Bookmarks</p>
+                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                      {tDash.searchGlobalBookmarks}
+                    </p>
                     {globalSearchResults.bookmarkMatches.length === 0 ? (
-                      <p className="text-xs text-text-muted/70">Không có bookmark phù hợp.</p>
+                      <p className="text-xs text-text-muted/70">{tDash.searchGlobalNoBookmark}</p>
                     ) : (
                       <ul className="space-y-1.5">
                         {globalSearchResults.bookmarkMatches.map((bm) => {
@@ -1945,13 +2068,29 @@ export default function Dashboard({
           )}
           {!searchTerm && (
             <>
-              {selectedBoardId && categories.length === 0 && !categoriesLoading && (
-                <div className="text-text-muted text-xs py-6 text-center">
-                  <span className="material-symbols-outlined text-3xl block mb-1.5 opacity-50">folder_open</span>
-                  <p>{getT(settings.locale).noCategoriesDashboard}</p>
+              {selectedBoardId && categories.length === 0 && !categoriesLoading && !columnsLoading && (
+                <div className="max-w-md mx-auto my-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-8 text-center">
+                  <span className="material-symbols-outlined text-[40px] text-accent/80 mb-3 block" aria-hidden>
+                    folder_special
+                  </span>
+                  <p className="text-sm font-semibold text-white">{tDash.emptyCategoriesTitle}</p>
+                  <p className="text-xs text-text-muted mt-2 mb-4 leading-relaxed">{tDash.emptyCategoriesBody}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryEditing(null);
+                      setCategoryModalOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent/25 border border-accent/40 text-accent text-xs font-medium px-4 py-2 hover:bg-accent/35 transition"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    {tDash.emptyCategoriesCta}
+                  </button>
                 </div>
               )}
-              {boardColumns.length > 0 && (
+              {showCategoryGridSkeleton ? (
+                <CategoryGridSkeleton numCols={numColumnsPreferred} />
+              ) : boardColumns.length > 0 ? (
                 <DndContext
                   sensors={categoryGridSensors}
                   collisionDetection={categoryCollisionDetection}
@@ -1995,15 +2134,7 @@ export default function Dashboard({
                     setActiveDragCategory(null);
                   }}
                 >
-                  <div
-                        className={`category-grid ${
-                          numColumnsPreferred === 2 ? 'category-grid-cols-2' :
-                          numColumnsPreferred === 3 ? 'category-grid-cols-3' :
-                          numColumnsPreferred === 5 ? 'category-grid-cols-5' :
-                          numColumnsPreferred === 6 ? 'category-grid-cols-6' :
-                          'category-grid-cols-4'
-                        }`}
-                      >
+                  <div className={`category-grid ${categoryGridColsClass(numColumnsPreferred)}`}>
                         {boardColumns.map((col) => {
                           const colCats = categoriesByColumn.get(col.id) ?? [];
                           const showLineAtTop = false;
@@ -2129,7 +2260,7 @@ export default function Dashboard({
                     ) : null}
                   </DragOverlay>
                 </DndContext>
-              )}
+              ) : null}
             </>
           )}
         </div>
@@ -2232,8 +2363,12 @@ export default function Dashboard({
         open={spotlightOpen}
         items={spotlightItems}
         onClose={() => setSpotlightOpen(false)}
-        onOpen={(url) => {
-          openBookmark(url);
+        onOpen={(url, opts) => {
+          if (opts?.newTab) {
+            openLink(url, false);
+          } else {
+            openBookmark(url);
+          }
           setSpotlightOpen(false);
         }}
       />
@@ -2487,7 +2622,7 @@ function CategoryCard({
   return (
     <div
       data-category-menu
-      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group hover:border-white/10 transition-all duration-200 min-w-0 ${
+      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group min-w-0 ring-1 ring-transparent transition-all duration-200 motion-reduce:transform-none hover:-translate-y-px hover:shadow-[0_14px_36px_rgba(0,0,0,0.32)] hover:ring-white/10 focus-within:ring-accent/30 focus-within:shadow-[0_12px_32px_rgba(0,0,0,0.28)] ${
         cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
       } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
         isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''

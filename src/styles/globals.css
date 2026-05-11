@@ -248,12 +248,12 @@ html.light .category-grid-item--target::before {
 
 /* Drag overlay card */
 .drag-overlay-card {
-  opacity: 0.92;
-  transform: rotate(1.5deg) scale(1.03);
+  opacity: 0.96;
+  transform: rotate(1.5deg) scale(1.04);
   box-shadow:
-    0 8px 25px rgba(0, 0, 0, 0.25),
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(129, 140, 248, 0.3);
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(129, 140, 248, 0.45);
   border-radius: 12px;
   cursor: grabbing;
 }
@@ -272,4 +272,118 @@ html.light .drag-overlay-card {
 }
 .drag-placeholder > * {
   filter: grayscale(0.5);
+}
+
+/* Landing entrance (respect reduced motion below) */
+@keyframes landing-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-stagger-item {
+    animation: landing-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .landing-stagger-item:nth-child(1) {
+    animation-delay: 0.04s;
+  }
+  .landing-stagger-item:nth-child(2) {
+    animation-delay: 0.11s;
+  }
+  .landing-stagger-item:nth-child(3) {
+    animation-delay: 0.18s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-stagger-item {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Skeleton shimmer (Dashboard loading) */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.14) 45%,
+    rgba(255, 255, 255, 0.04) 90%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.15s ease-in-out infinite;
+}
+
+html.light .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 0%,
+    rgba(0, 0, 0, 0.08) 45%,
+    rgba(0, 0, 0, 0.04) 90%
+  );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  html.light .skeleton-shimmer {
+    background: rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* Pomodoro ring glow when running */
+@keyframes pomodoro-ring-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.75));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pomodoro-ring-active {
+    animation: pomodoro-ring-glow 2.2s ease-in-out infinite;
+  }
+}
+
+@keyframes spotlight-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.spotlight-panel-in {
+  animation: spotlight-panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-panel-in {
+    animation: none;
+  }
 }

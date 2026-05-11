@@ -22,6 +22,10 @@ interface SettingsContextValue extends AppSettings {
   setBackgroundColor: (v: string) => void;
   setBackgroundMode: (v: 'color' | 'image') => void;
   setBackgroundImageUrl: (v: string | null) => void;
+  setLandingBackgroundColor: (v: string | null) => void;
+  setLandingBackgroundMode: (v: 'color' | 'image') => void;
+  setLandingBackgroundImageUrl: (v: string | null) => void;
+  setLandingBackgroundOverlayOpacity: (v: number | null) => void;
   setBackgroundOverlayOpacity: (v: number) => void;
   setCategoryCardHeight: (v: CategoryCardHeight) => void;
   setOpenLinkIn: (v: OpenLinkIn) => void;
@@ -166,6 +170,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setBackgroundColor: (v) => update({ backgroundColor: v }),
     setBackgroundMode: (v) => update({ backgroundMode: v }),
     setBackgroundImageUrl: (v) => update({ backgroundImageUrl: v }),
+    setLandingBackgroundColor: (v) => update({ landingBackgroundColor: v }),
+    setLandingBackgroundMode: (v) => update({ landingBackgroundMode: v }),
+    setLandingBackgroundImageUrl: (v) => update({ landingBackgroundImageUrl: v }),
+    setLandingBackgroundOverlayOpacity: (v) =>
+      update({ landingBackgroundOverlayOpacity: v ?? null }),
     setBackgroundOverlayOpacity: (v) => update({ backgroundOverlayOpacity: v }),
     setCategoryCardHeight: (v) => update({ categoryCardHeight: v }),
     setOpenLinkIn: (v) => update({ openLinkIn: v }),

@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import QRCode from 'qrcode';
 import { useSettings } from '../contexts/SettingsContext';
+import { generatePassword, generateUuids, hashText } from '../lib/cryptoUtils';
 import { getT } from '../lib/i18n';
+import {
+  REGEX_CHEATSHEET_IDS,
+  REGEX_CHEATSHEET_PATTERNS,
+  type RegexCheatsheetId,
+  highlightInputHtml,
+  runRegex,
+  sanitizeRegexFlags,
+} from '../lib/regexUtils';
 
-type TabId = 'json' | 'jwt' | 'url' | 'base64';
+type TabId = 'json' | 'jwt' | 'url' | 'base64' | 'regex' | 'qr-gen' | 'crypto-gen';
 
 interface ITToolboxModalProps {
   open: boolean;
@@ -162,6 +172,96 @@ function base64UrlEncode(str: string): string {
     .replace(/=+$/, '');
 }
 
+/** Chuỗi có đúng 3 segment base64url (JWT). */
+function looksLikeJwt(s: string): boolean {
+  const p = s.trim().split('.');
+  return p.length === 3 && p.every((x) => x.length > 0);
+}
+
+/** Tìm JWT dài nhất trong text (header thường bắt đầu bằng eyJ). */
+function extractJwtByRegex(s: string): string | null {
+  const re = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+  let best = '';
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s)) !== null) {
+    if (m[0].length > best.length) best = m[0];
+  }
+  return best || null;
+}
+
+/** JWT nằm trong log JSON dạng ..."payload":"eyJ..."... (kể cả chuỗi escape như log). */
+function extractJwtFromPayloadFieldInText(s: string): string | null {
+  const patterns = [
+    /"payload"\s*:\s*"(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)"/,
+    /\\"payload\\"\s*:\s*\\"(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\\"/,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m?.[1] && looksLikeJwt(m[1])) return m[1];
+  }
+  return null;
+}
+
+function normalizePastedLogText(raw: string): string {
+  return raw
+    .replace(/^\s*request\s*:\s*/i, '')
+    .trim()
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+}
+
+const MAX_JWT_NEST_DEPTH = 10;
+
+/**
+ * Trích JWT từ log dạng:
+ * `Request : ["https://...","{\"payload\":\"eyJ...\"}"]`
+ * hoặc JSON có `payload`, hoặc chuỗi JSON lồng nhau.
+ */
+function extractJwtFromNestedValue(val: unknown, depth: number): string | null {
+  if (depth > MAX_JWT_NEST_DEPTH) return null;
+  if (typeof val === 'string') {
+    const u = val.trim();
+    if (!u) return null;
+    if (/^https?:\/\//i.test(u)) return null;
+    if (looksLikeJwt(u)) return u;
+    try {
+      return extractJwtFromNestedValue(JSON.parse(u), depth + 1);
+    } catch {
+      return extractJwtByRegex(u);
+    }
+  }
+  if (Array.isArray(val)) {
+    for (const item of val) {
+      const r = extractJwtFromNestedValue(item, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (val && typeof val === 'object') {
+    const p = (val as Record<string, unknown>).payload;
+    if (p !== undefined) {
+      const r = extractJwtFromNestedValue(p, depth + 1);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function extractJwtFromPastedText(raw: string): string | null {
+  const s0 = normalizePastedLogText(raw);
+  if (!s0) return null;
+  if (looksLikeJwt(s0)) return s0.trim();
+  try {
+    const parsed = JSON.parse(s0);
+    const fromNested = extractJwtFromNestedValue(parsed, 0);
+    if (fromNested) return fromNested;
+  } catch {
+    // không parse được JSON đầy đủ — vẫn có thể có payload trong chuỗi log
+  }
+  const fromPayloadKey = extractJwtFromPayloadFieldInText(s0);
+  if (fromPayloadKey) return fromPayloadKey;
+  return extractJwtByRegex(s0);
+}
+
 async function signHmacSha256(key: string, data: string): Promise<string> {
   const enc = new TextEncoder();
   const keyData = enc.encode(key);
@@ -191,6 +291,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
   const [encodeSecret, setEncodeSecret] = useState('');
   const [encodedJwt, setEncodedJwt] = useState('');
   const [jwtError, setJwtError] = useState<string | null>(null);
+  const [jwtAutoExtracted, setJwtAutoExtracted] = useState(false);
   const [mode, setMode] = useState<'decode' | 'encode'>('decode');
 
   const decodeJwt = async () => {
@@ -200,15 +301,22 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
     if (!raw) {
       setHeaderOut('');
       setPayloadOut('');
+      setJwtAutoExtracted(false);
       return;
     }
-    const parts = raw.split('.');
-    if (parts.length !== 3) {
+    const extracted = extractJwtFromPastedText(raw);
+    // Không dùng raw làm token: log có URL nhiều dấu "." → split('.') sai, báo lỗi 3 phần oan.
+    const token = extracted?.trim() ?? '';
+    setJwtAutoExtracted(Boolean(extracted && extracted.trim() !== raw.trim()));
+
+    if (!token || !looksLikeJwt(token)) {
       setJwtError(t.itToolboxJwtInvalid);
       setHeaderOut('');
       setPayloadOut('');
       return;
     }
+
+    const parts = token.split('.');
     try {
       const headerJson = base64UrlDecode(parts[0]);
       const payloadJson = base64UrlDecode(parts[1]);
@@ -270,6 +378,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
       setPayloadOut('');
       setSignatureValid(null);
       setJwtError(null);
+      setJwtAutoExtracted(false);
       return;
     }
     decodeJwt();
@@ -329,6 +438,9 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
               <p className={`text-[11px] ${signatureValid ? 'text-emerald-400' : 'text-red-400'}`}>
                 {signatureValid ? t.itToolboxJwtSignatureValid : t.itToolboxJwtSignatureInvalid}
               </p>
+            )}
+            {jwtAutoExtracted && !jwtError && (
+              <p className="text-[11px] text-sky-300/90">{t.itToolboxJwtAutoDetected}</p>
             )}
             {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
           </div>
@@ -477,19 +589,584 @@ function Base64Tab({ t }: { t: ReturnType<typeof getT> }) {
   );
 }
 
+const CHEAT_LABEL: Record<RegexCheatsheetId, (tr: ReturnType<typeof getT>) => string> = {
+  Email: (tr) => tr.itToolboxRegexCheatEmail,
+  Url: (tr) => tr.itToolboxRegexCheatUrl,
+  PhoneVn: (tr) => tr.itToolboxRegexCheatPhoneVn,
+  Ipv4: (tr) => tr.itToolboxRegexCheatIpv4,
+  Uuid: (tr) => tr.itToolboxRegexCheatUuid,
+};
+
+function FlagChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2 py-1 rounded-md text-[11px] font-mono border transition ${
+        active
+          ? 'bg-accent/25 border-accent/50 text-accent'
+          : 'bg-white/5 border-white/10 text-text-muted hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ——— Regex Tab ———
+function RegexTab({ t }: { t: ReturnType<typeof getT> }) {
+  const [pattern, setPattern] = useState('');
+  const [flagG, setFlagG] = useState(true);
+  const [flagI, setFlagI] = useState(false);
+  const [flagM, setFlagM] = useState(false);
+  const [flagS, setFlagS] = useState(false);
+  const [flagU, setFlagU] = useState(false);
+  const [flagY, setFlagY] = useState(false);
+  const [testInput, setTestInput] = useState('');
+  const [replaceMode, setReplaceMode] = useState<'match' | 'replace'>('match');
+  const [replaceWith, setReplaceWith] = useState('');
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
+  const [copyFlash, setCopyFlash] = useState(false);
+
+  const flags = useMemo(() => {
+    let s = '';
+    if (flagG) s += 'g';
+    if (flagI) s += 'i';
+    if (flagM) s += 'm';
+    if (flagS) s += 's';
+    if (flagU) s += 'u';
+    if (flagY) s += 'y';
+    return sanitizeRegexFlags(s);
+  }, [flagG, flagI, flagM, flagS, flagU, flagY]);
+
+  const matchRun = useMemo(() => runRegex(pattern, flags, testInput), [pattern, flags, testInput]);
+  const replaceRun = useMemo(
+    () => (replaceMode === 'replace' ? runRegex(pattern, flags, testInput, replaceWith) : null),
+    [replaceMode, pattern, flags, testInput, replaceWith]
+  );
+
+  const displayError = replaceRun?.error ?? matchRun.error;
+  const highlightedHtml = useMemo(
+    () => highlightInputHtml(testInput, matchRun.highlights),
+    [testInput, matchRun.highlights]
+  );
+
+  const applyCheat = (id: RegexCheatsheetId) => {
+    setPattern(REGEX_CHEATSHEET_PATTERNS[id]);
+    setCheatsheetOpen(false);
+  };
+
+  const copyMatches = async () => {
+    const text = matchRun.matches
+      .map((m, i) => `#${i + 1} @${m.index}: ${JSON.stringify(m.value)} groups: [${m.groups.map((g) => JSON.stringify(g)).join(', ')}]`)
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text || t.itToolboxRegexNoMatches);
+      setCopyFlash(true);
+      setTimeout(() => setCopyFlash(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4 h-full min-h-0 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setReplaceMode('match')}
+          className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border ${
+            replaceMode === 'match'
+              ? 'bg-accent/20 border-accent/50 text-accent'
+              : 'bg-white/5 border-white/10 text-text-secondary'
+          }`}
+        >
+          {t.itToolboxRegexMatchMode}
+        </button>
+        <button
+          type="button"
+          onClick={() => setReplaceMode('replace')}
+          className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border ${
+            replaceMode === 'replace'
+              ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
+              : 'bg-white/5 border-white/10 text-text-secondary'
+          }`}
+        >
+          {t.itToolboxRegexReplaceMode}
+        </button>
+        <button
+          type="button"
+          onClick={() => setCheatsheetOpen((o) => !o)}
+          className="ml-auto px-3 py-1.5 rounded-lg text-[11px] font-medium border border-white/10 bg-white/5 text-text-secondary hover:text-white"
+        >
+          {cheatsheetOpen ? t.itToolboxRegexCheatsheetHide : t.itToolboxRegexCheatsheetShow}: {t.itToolboxRegexCheatsheet}
+        </button>
+      </div>
+
+      {cheatsheetOpen && (
+        <div className="flex flex-wrap gap-2 p-3 rounded-lg border border-white/10 bg-white/[0.03] flex-shrink-0">
+          {REGEX_CHEATSHEET_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => applyCheat(id)}
+              className="px-2.5 py-1 rounded-md text-[11px] border border-white/15 bg-white/5 hover:bg-white/10 text-white"
+            >
+              {CHEAT_LABEL[id](t)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <div>
+            <Label>{t.itToolboxRegexPattern}</Label>
+            <TextArea value={pattern} onChange={setPattern} placeholder="\\d+" rows={3} className="min-h-[72px]" />
+          </div>
+          <div>
+            <Label>{t.itToolboxRegexFlags}</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              <FlagChip label="g" active={flagG} onClick={() => setFlagG((v) => !v)} />
+              <FlagChip label="i" active={flagI} onClick={() => setFlagI((v) => !v)} />
+              <FlagChip label="m" active={flagM} onClick={() => setFlagM((v) => !v)} />
+              <FlagChip label="s" active={flagS} onClick={() => setFlagS((v) => !v)} />
+              <FlagChip label="u" active={flagU} onClick={() => setFlagU((v) => !v)} />
+              <FlagChip label="y" active={flagY} onClick={() => setFlagY((v) => !v)} />
+            </div>
+          </div>
+          {replaceMode === 'replace' && (
+            <div>
+              <Label>{t.itToolboxRegexReplaceWith}</Label>
+              <TextArea value={replaceWith} onChange={setReplaceWith} placeholder="$1" rows={2} />
+            </div>
+          )}
+          <div className="flex flex-col flex-1 min-h-[120px]">
+            <Label>{t.itToolboxRegexTestString}</Label>
+            <TextArea value={testInput} onChange={setTestInput} placeholder="..." rows={8} className="flex-1 min-h-[100px]" />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
+          {displayError && <p className="text-[11px] text-red-400 flex-shrink-0">{displayError}</p>}
+          {replaceMode === 'replace' && replaceRun?.replaced !== null && (
+            <div className="flex flex-col min-h-0 flex-shrink-0">
+              <Label>{t.itToolboxRegexReplacePreview}</Label>
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all rounded-lg border border-white/10 bg-white/[0.02] p-3 max-h-[28vh] overflow-y-auto text-white/90">
+                {replaceRun?.replaced ?? ''}
+              </pre>
+            </div>
+          )}
+          {replaceMode === 'match' && (
+            <div className="flex flex-col flex-shrink-0 min-h-0 max-h-[32vh]">
+              <div className="flex items-center justify-between gap-2 mb-1 flex-shrink-0">
+                <Label>{t.itToolboxRegexHighlighted}</Label>
+              </div>
+              <div
+                className="text-xs font-mono whitespace-pre-wrap break-words rounded-lg border border-white/10 bg-white/[0.02] p-3 flex-1 min-h-[100px] overflow-y-auto text-white/90"
+                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+              />
+            </div>
+          )}
+          <div className="flex flex-col flex-1 min-h-0 mt-1">
+              <div className="flex items-center justify-between flex-shrink-0 mb-1">
+                <span className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">{t.itToolboxRegexMatches}</span>
+                <div className="flex items-center gap-2">
+                  {copyFlash && <span className="text-[10px] text-emerald-400">{t.copied}</span>}
+                  <button
+                    type="button"
+                    onClick={copyMatches}
+                    className="text-[10px] text-accent hover:underline"
+                  >
+                    {t.itToolboxCopy}
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] flex-1 min-h-[100px] max-h-[40vh] overflow-y-auto p-2 space-y-2">
+                {matchRun.matches.length === 0 ? (
+                  <p className="text-[11px] text-text-muted">{t.itToolboxRegexNoMatches}</p>
+                ) : (
+                  matchRun.matches.map((m, idx) => (
+                    <div key={`${m.index}-${idx}`} className="text-[11px] border-b border-white/5 pb-2 last:border-0 font-mono">
+                      <span className="text-text-muted">#{idx + 1}</span>{' '}
+                      <span className="text-sky-300/90">@{m.index}</span>{' '}
+                      <span className="text-emerald-300/90 break-all">{JSON.stringify(m.value)}</span>
+                      {m.groups.length > 0 && (
+                        <div className="mt-1 pl-2 text-text-secondary">
+                          groups: [{m.groups.map((g) => JSON.stringify(g)).join(', ')}]
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ——— QR Generator Tab ———
+type QrEcc = 'L' | 'M' | 'Q' | 'H';
+
+function QrGenTab({ t }: { t: ReturnType<typeof getT> }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [content, setContent] = useState('');
+  const [ecc, setEcc] = useState<QrEcc>('M');
+  const [size, setSize] = useState(256);
+  const [fg, setFg] = useState('#0f172a');
+  const [bg, setBg] = useState('#ffffff');
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [copyFlash, setCopyFlash] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!content.trim()) {
+      setQrError(null);
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setQrError(null);
+        await QRCode.toCanvas(canvas, content, {
+          errorCorrectionLevel: ecc,
+          width: Math.min(512, Math.max(64, size)),
+          margin: 2,
+          color: { dark: fg, light: bg },
+        });
+        if (cancelled) return;
+      } catch (e) {
+        if (!cancelled) {
+          setQrError(e instanceof Error ? e.message : t.itToolboxQrError);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t stable for QR error fallback
+  }, [content, ecc, size, fg, bg]);
+
+  const downloadPng = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !content.trim()) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'linkhub-qr.png';
+    a.click();
+  };
+
+  const copyImage = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !content.trim()) return;
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+      if (!blob || !navigator.clipboard?.write) {
+        throw new Error('no-clipboard');
+      }
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setCopyFlash(true);
+      setTimeout(() => setCopyFlash(false), 1500);
+    } catch {
+      window.alert(t.itToolboxCopyFailed);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5 h-full min-h-0 items-stretch">
+      <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+        <div>
+          <Label>{t.itToolboxQrContent}</Label>
+          <TextArea value={content} onChange={setContent} placeholder="https://..." rows={8} className="min-h-[120px]" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div>
+            <Label>{t.itToolboxQrEcc}</Label>
+            <select
+              value={ecc}
+              onChange={(e) => setEcc(e.target.value as QrEcc)}
+              className="mt-1 w-full px-2 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white"
+            >
+              <option value="L">L</option>
+              <option value="M">M</option>
+              <option value="Q">Q</option>
+              <option value="H">H</option>
+            </select>
+          </div>
+          <div>
+            <Label>{t.itToolboxQrSize}</Label>
+            <input
+              type="number"
+              min={64}
+              max={512}
+              step={32}
+              value={size}
+              onChange={(e) => setSize(Number(e.target.value) || 256)}
+              className="mt-1 w-full px-2 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white"
+            />
+          </div>
+          <div>
+            <Label>{t.itToolboxQrFg}</Label>
+            <input
+              type="color"
+              value={fg}
+              onChange={(e) => setFg(e.target.value)}
+              className="mt-1 w-full h-9 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+            />
+          </div>
+          <div>
+            <Label>{t.itToolboxQrBg}</Label>
+            <input
+              type="color"
+              value={bg}
+              onChange={(e) => setBg(e.target.value)}
+              className="mt-1 w-full h-9 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+            />
+          </div>
+        </div>
+        {!content.trim() && <p className="text-[11px] text-text-muted">{t.itToolboxQrEmpty}</p>}
+        {qrError && <p className="text-[11px] text-red-400">{qrError}</p>}
+        <div className="flex flex-wrap gap-2">
+          <ActionBtn onClick={downloadPng} variant="success" disabled={!content.trim()}>
+            {t.itToolboxQrDownloadPng}
+          </ActionBtn>
+          <ActionBtn onClick={copyImage} variant="info" disabled={!content.trim()}>
+            {t.itToolboxQrCopyImage}
+          </ActionBtn>
+          {copyFlash && <span className="text-[11px] text-emerald-400 self-center">{t.copied}</span>}
+        </div>
+      </div>
+      <div className="flex flex-col items-center justify-start gap-2 min-w-0">
+        <Label>{t.itToolboxQrPreview}</Label>
+        <div className="rounded-xl border border-white/10 bg-white p-2 inline-block">
+          <canvas ref={canvasRef} className="max-w-full h-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HashRow({
+  label,
+  value,
+  copyLabel,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copyLabel: string;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">{label}</span>
+        <button type="button" onClick={onCopy} className="text-[10px] text-accent hover:underline shrink-0">
+          {copyLabel}
+        </button>
+      </div>
+      <code className="text-[11px] font-mono break-all rounded border border-white/10 bg-black/20 px-2 py-1.5 text-white/85">
+        {value || '—'}
+      </code>
+    </div>
+  );
+}
+
+// ——— Hash / UUID / Password Tab ———
+function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
+  const [hashInput, setHashInput] = useState('');
+  const [hashes, setHashes] = useState<{ md5: string; sha1: string; sha256: string; sha512: string } | null>(null);
+  const [uuidBlock, setUuidBlock] = useState('');
+  const [pwdLen, setPwdLen] = useState(16);
+  const [pwdLower, setPwdLower] = useState(true);
+  const [pwdUpper, setPwdUpper] = useState(true);
+  const [pwdDigits, setPwdDigits] = useState(true);
+  const [pwdSpecial, setPwdSpecial] = useState(true);
+  const [password, setPassword] = useState('');
+  const [flash, setFlash] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const h = await hashText(hashInput);
+      if (!cancelled) setHashes(h);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hashInput]);
+
+  useEffect(() => {
+    setPassword(
+      generatePassword({
+        length: pwdLen,
+        lower: pwdLower,
+        upper: pwdUpper,
+        digits: pwdDigits,
+        special: pwdSpecial,
+      })
+    );
+  }, [pwdLen, pwdLower, pwdUpper, pwdDigits, pwdSpecial]);
+
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setFlash(t.copied);
+      setTimeout(() => setFlash(''), 1500);
+    } catch {
+      setFlash(t.itToolboxCopyFailed);
+      setTimeout(() => setFlash(''), 2000);
+    }
+  };
+
+  const genUuids = (n: 1 | 10 | 100) => {
+    const lines = generateUuids(n === 1 ? 1 : n);
+    setUuidBlock(lines.join('\n'));
+  };
+
+  return (
+    <div className="flex flex-col gap-5 h-full min-h-0 overflow-y-auto">
+      {flash && (
+        <p className={`text-[11px] ${flash === t.itToolboxCopyFailed ? 'text-red-400' : 'text-emerald-400'}`}>{flash}</p>
+      )}
+
+      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoHashInput}</h3>
+        <TextArea value={hashInput} onChange={setHashInput} rows={4} placeholder="" />
+        {hashes && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <HashRow label={t.itToolboxCryptoMd5} value={hashes.md5} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.md5)} />
+            <HashRow label={t.itToolboxCryptoSha1} value={hashes.sha1} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha1)} />
+            <HashRow label={t.itToolboxCryptoSha256} value={hashes.sha256} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha256)} />
+            <HashRow label={t.itToolboxCryptoSha512} value={hashes.sha512} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha512)} />
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoUuidTitle}</h3>
+        <div className="flex flex-wrap gap-2">
+          <ActionBtn onClick={() => genUuids(1)} variant="primary">
+            {t.itToolboxCryptoGenOne}
+          </ActionBtn>
+          <ActionBtn onClick={() => genUuids(10)} variant="neutral">
+            {t.itToolboxCryptoGen10}
+          </ActionBtn>
+          <ActionBtn onClick={() => genUuids(100)} variant="neutral">
+            {t.itToolboxCryptoGen100}
+          </ActionBtn>
+          <ActionBtn onClick={() => copyText(uuidBlock)} variant="success" disabled={!uuidBlock}>
+            {t.itToolboxCopy}
+          </ActionBtn>
+        </div>
+        <TextArea value={uuidBlock} onChange={setUuidBlock} readOnly rows={6} placeholder="UUID…" />
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoPasswordTitle}</h3>
+        <div className="flex flex-col gap-2">
+          <Label>{t.itToolboxCryptoPasswordLength}: {pwdLen}</Label>
+          <input
+            type="range"
+            min={8}
+            max={64}
+            value={pwdLen}
+            onChange={(e) => setPwdLen(Number(e.target.value))}
+            className="w-full accent-accent"
+          />
+          <div className="flex flex-wrap gap-3 text-[11px] text-text-secondary">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={pwdLower} onChange={(e) => setPwdLower(e.target.checked)} />
+              {t.itToolboxCryptoLower}
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={pwdUpper} onChange={(e) => setPwdUpper(e.target.checked)} />
+              {t.itToolboxCryptoUpper}
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={pwdDigits} onChange={(e) => setPwdDigits(e.target.checked)} />
+              {t.itToolboxCryptoDigits}
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={pwdSpecial} onChange={(e) => setPwdSpecial(e.target.checked)} />
+              {t.itToolboxCryptoSpecial}
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <code className="flex-1 min-w-0 text-xs font-mono break-all rounded border border-white/10 bg-black/20 px-2 py-2 text-white/90">
+              {password}
+            </code>
+            <ActionBtn
+              onClick={() =>
+                setPassword(
+                  generatePassword({
+                    length: pwdLen,
+                    lower: pwdLower,
+                    upper: pwdUpper,
+                    digits: pwdDigits,
+                    special: pwdSpecial,
+                  })
+                )
+              }
+              variant="warning"
+            >
+              {t.itToolboxCryptoRegenerate}
+            </ActionBtn>
+            <ActionBtn onClick={() => copyText(password)} variant="success">
+              {t.itToolboxCopy}
+            </ActionBtn>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 const TAB_STYLES: Record<TabId, { active: string; icon: string }> = {
   jwt: { active: 'border-violet-500 text-violet-400 bg-violet-500/10', icon: 'token' },
   json: { active: 'border-accent text-accent bg-accent/10', icon: 'data_object' },
   url: { active: 'border-emerald-500 text-emerald-400 bg-emerald-500/10', icon: 'link' },
   base64: { active: 'border-amber-500 text-amber-400 bg-amber-500/10', icon: 'code' },
+  regex: { active: 'border-rose-500 text-rose-400 bg-rose-500/10', icon: 'pattern' },
+  'qr-gen': { active: 'border-cyan-500 text-cyan-400 bg-cyan-500/10', icon: 'qr_code_2' },
+  'crypto-gen': { active: 'border-slate-400 text-slate-300 bg-slate-500/10', icon: 'tag' },
 };
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'jwt', label: 'JWT' },
-  { id: 'json', label: 'JSON' },
-  { id: 'url', label: 'URL' },
-  { id: 'base64', label: 'Base64' },
-];
+const TAB_ORDER: TabId[] = ['jwt', 'json', 'url', 'base64', 'regex', 'qr-gen', 'crypto-gen'];
+
+function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
+  switch (id) {
+    case 'jwt':
+      return 'JWT';
+    case 'json':
+      return 'JSON';
+    case 'url':
+      return 'URL';
+    case 'base64':
+      return 'Base64';
+    case 'regex':
+      return tr.itToolboxTabRegex;
+    case 'qr-gen':
+      return tr.itToolboxTabQrGen;
+    case 'crypto-gen':
+      return tr.itToolboxTabCrypto;
+  }
+}
 
 export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
   const settings = useSettings();
@@ -525,7 +1202,7 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
         </div>
 
         <div className="flex border-b border-white/10 px-2 gap-0.5 flex-shrink-0 overflow-x-auto">
-          {TABS.map(({ id, label }) => {
+          {TAB_ORDER.map((id) => {
             const style = TAB_STYLES[id];
             return (
               <button
@@ -539,7 +1216,7 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
-                {label}
+                {tabLabel(id, t)}
               </button>
             );
           })}
@@ -551,6 +1228,9 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
             {activeTab === 'jwt' && <JwtTab t={t} />}
             {activeTab === 'url' && <UrlTab t={t} />}
             {activeTab === 'base64' && <Base64Tab t={t} />}
+            {activeTab === 'regex' && <RegexTab t={t} />}
+            {activeTab === 'qr-gen' && <QrGenTab t={t} />}
+            {activeTab === 'crypto-gen' && <CryptoGenTab t={t} />}
           </div>
         </div>
       </div>

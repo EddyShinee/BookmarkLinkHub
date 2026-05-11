@@ -46,6 +46,8 @@ export default function Landing() {
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState<'work' | 'break'>('work');
   const [pomodoroCustomMinutes, setPomodoroCustomMinutes] = useState('25');
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  const [mainScrolled, setMainScrolled] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -250,7 +252,11 @@ export default function Landing() {
       />
 
       <div className="relative z-10 flex flex-col min-h-full w-full">
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 gap-2">
+        <div
+          className={`flex-shrink-0 flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 gap-2 transition-shadow duration-300 ${
+            mainScrolled ? 'shadow-[0_12px_40px_rgba(0,0,0,0.55)] border-b border-white/10' : ''
+          }`}
+        >
           <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 sm:px-3 sm:py-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
             <span className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.18em] text-slate-100">
@@ -302,7 +308,7 @@ export default function Landing() {
             <button
               type="button"
               onClick={() => navigate('/bookmarks')}
-              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.7)] hover:bg-white"
+              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.7)] hover:bg-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] hover:shadow-[0_14px_44px_rgba(15,23,42,0.75)] motion-reduce:transform-none"
             >
               <span className="material-symbols-outlined text-[14px] sm:text-[16px]">bookmark</span>
               <span>{t.landingPrimaryCta}</span>
@@ -311,11 +317,24 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 text-white flex flex-col">
+        <div
+          ref={mainScrollRef}
+          onScroll={() => {
+            const el = mainScrollRef.current;
+            setMainScrolled(!!el && el.scrollTop > 8);
+          }}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 text-white flex flex-col"
+        >
           <div className="w-full max-w-[1600px] mx-auto py-4 sm:py-6 pb-8 text-left flex-1 flex flex-col min-h-0 max-md:flex-none max-md:min-h-0 md:justify-center">
-          <div className={`grid gap-6 sm:gap-8 lg:gap-10 items-stretch ${gridColsClass} ${gridRowsClass}`}>
+          <div className={`grid gap-6 sm:gap-8 lg:gap-10 items-stretch landing-stagger ${gridColsClass} ${gridRowsClass}`}>
             {/* Pomodoro column */}
-            <div className={`h-full flex flex-col ${showPomodoro ? 'rounded-2xl bg-black/35 border border-white/20 backdrop-blur-[18px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.9)]' : ''}`}>
+            <div
+              className={`landing-stagger-item h-full flex flex-col min-h-0 ${
+                showPomodoro
+                  ? 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.88)]'
+                  : ''
+              }`}
+            >
               {showPomodoro && (
                 <>
               <div className="flex items-center justify-between mb-2">
@@ -340,7 +359,11 @@ export default function Landing() {
               </div>
 
               <div className="flex-1 flex items-center justify-center mb-2 w-full">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-[140px] md:h-[140px] flex-shrink-0">
+                <div
+                  className={`w-24 h-24 sm:w-28 sm:h-28 md:w-[140px] md:h-[140px] flex-shrink-0 ${
+                    pomodoroRunning ? 'pomodoro-ring-active' : ''
+                  }`}
+                >
                 <svg width="100%" height="100%" viewBox="0 0 80 80" className="max-w-full max-h-full">
                   {(() => {
                     const radius = 36;
@@ -483,7 +506,7 @@ export default function Landing() {
               )}
             </div>
 
-            <div className="rounded-3xl bg-black/30 border border-white/20 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_26px_90px_rgba(0,0,0,0.9)] h-full flex flex-col justify-center">
+            <div className="landing-stagger-item rounded-3xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_28px_90px_rgba(0,0,0,0.92)] h-full flex flex-col justify-center">
               <div className="flex items-baseline justify-center gap-2 text-[56px] sm:text-[72px] md:text-[88px] font-semibold leading-none tracking-tight drop-shadow-[0_16px_52px_rgba(0,0,0,0.95)]">
                 <span>
                   {(() => {
@@ -508,16 +531,25 @@ export default function Landing() {
                   </span>
                 )}
               </div>
-              <p className="mt-4 text-lg sm:text-2xl md:text-3xl font-medium drop-shadow-[0_8px_32px_rgba(0,0,0,0.85)] text-center">
+              <p className="mt-4 text-lg sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.88)] text-center text-white">
                 {greeting}
-                {displayName ? `, ${displayName}.` : '.'}
+                {displayName ? (
+                  <span className="font-semibold text-white">{`, ${displayName}`}</span>
+                ) : null}
+                <span className="text-white/90">.</span>
               </p>
-              <p className="mt-2 text-sm sm:text-base text-slate-200/90 drop-shadow-[0_6px_20px_rgba(0,0,0,0.85)] text-center">
+              <p className="mt-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-300/90 drop-shadow-[0_6px_20px_rgba(0,0,0,0.85)] text-center">
                 {dateStr}
               </p>
             </div>
 
-            <div className={`h-full min-h-0 flex flex-col ${showTodos ? 'rounded-2xl bg-black/35 border border-white/15 backdrop-blur-[14px] px-3 py-3 sm:px-4 shadow-[0_18px_45px_rgba(0,0,0,0.7)]' : ''}`}>
+            <div
+              className={`landing-stagger-item h-full min-h-0 flex flex-col ${
+                showTodos
+                  ? 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_22px_55px_rgba(0,0,0,0.82)]'
+                  : ''
+              }`}
+            >
             {showTodos && (
             <>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
@@ -810,12 +842,8 @@ export default function Landing() {
                         const reader = new FileReader();
                         reader.onload = () => {
                           const url = reader.result as string;
-                          settings.setBackgroundMode('image');
-                          if ((settings as any).setLandingBackgroundImageUrl) {
-                            (settings as any).setLandingBackgroundImageUrl(url);
-                          } else {
-                            settings.setBackgroundImageUrl(url);
-                          }
+                          settings.setLandingBackgroundMode?.('image');
+                          settings.setLandingBackgroundImageUrl?.(url);
                           setCustomUrl(url);
                         };
                         reader.readAsDataURL(file);
@@ -839,12 +867,8 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => {
-                      settings.setBackgroundMode('image');
-                      if ((settings as any).setLandingBackgroundImageUrl) {
-                        (settings as any).setLandingBackgroundImageUrl(customUrl || null);
-                      } else {
-                        settings.setBackgroundImageUrl(customUrl || null);
-                      }
+                      settings.setLandingBackgroundMode?.('image');
+                      settings.setLandingBackgroundImageUrl?.(customUrl || null);
                       setBgSettingsOpen(false);
                     }}
                     className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white/90 text-slate-900 font-semibold hover:bg-white"
