@@ -76,7 +76,7 @@ export function DashboardSidebar({
         />
       )}
       <aside
-        className={`border-r ${borderChrome} flex flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
+        className={`border-r ${borderChrome} flex min-h-0 flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={chromePanelBackground(settings.headerSidebarColorEffect, settings.theme)}
@@ -140,7 +140,7 @@ export function DashboardSidebar({
             <span className="material-icons-round text-base">add_circle_outline</span>
           </button>
         </div>
-        <div className="scrollbar-none flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
+        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
           {boardsLoading && boards.length === 0 && (
             <div className="px-1 py-2 space-y-2" aria-hidden>
               {[0, 1, 2, 3].map((i) => (

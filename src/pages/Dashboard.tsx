@@ -1372,7 +1372,7 @@ export default function Dashboard({
 
       {/* Main */}
       <main
-        className={`flex-1 flex flex-col min-w-0 bg-cover bg-center relative z-10 transition-[margin] duration-200 ${
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden min-w-0 bg-cover bg-center relative z-10 transition-[margin] duration-200 ${
           sidebarOpen ? 'md:ml-64' : 'md:ml-0'
         }`}
       >
@@ -1419,7 +1419,7 @@ export default function Dashboard({
           persistBoardSortOrder={persistBoardSortOrder}
         />
 
-        <div className="scrollbar-none flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
+        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
           {boardsError && (
             <p className="text-red-400 text-xs py-3">{boardsError.message}</p>
           )}
