@@ -1483,6 +1483,15 @@ export default function Dashboard({
               : 'radial-gradient(ellipse 88% 50% at 50% -8%, rgba(129,140,248,0.14), transparent 48%), radial-gradient(ellipse 70% 55% at 100% 100%, rgba(0,0,0,0.42), transparent)',
         }}
       />
+      {/* Mobile: tap ngoài sidebar để đóng (nút menu header nằm dưới lớp sidebar z-40) */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-[35] bg-black/55 backdrop-blur-[1px] md:hidden border-0 p-0 cursor-pointer"
+          aria-label={tDash.sidebarCloseMenu}
+        />
+      )}
       {/* Sidebar */}
       <aside
         className={`border-r border-white/10 flex flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
@@ -1500,13 +1509,21 @@ export default function Dashboard({
             : { backgroundColor: '#1E293B' }
         }
       >
-        <div className="h-12 flex items-center px-4 border-b border-white/10">
-          <div className="flex items-center gap-2 text-accent group cursor-pointer">
-            <div className="p-1.5 bg-accent/10 rounded-lg group-hover:bg-accent/20 transition-colors">
+        <div className="h-12 flex items-center justify-between gap-2 px-4 border-b border-white/10">
+          <div className="flex items-center gap-2 text-accent group cursor-pointer min-w-0">
+            <div className="p-1.5 bg-accent/10 rounded-lg group-hover:bg-accent/20 transition-colors flex-shrink-0">
               <span className="material-symbols-outlined text-[18px]">hub</span>
             </div>
-            <span className="font-semibold text-sm tracking-tight text-white">LinkHub</span>
+            <span className="font-semibold text-sm tracking-tight text-white truncate">LinkHub</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-text-muted transition-colors duration-150 hover:bg-white/10 hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+            aria-label={tDash.sidebarCloseMenu}
+          >
+            <span className="material-symbols-outlined text-[18px] leading-none">close</span>
+          </button>
         </div>
         <div className="px-3 pt-2 pb-1 space-y-0.5">
           <button
