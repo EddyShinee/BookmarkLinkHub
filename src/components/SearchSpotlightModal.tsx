@@ -74,6 +74,7 @@ export default function SearchSpotlightModal({
 }: SearchSpotlightModalProps) {
   const settings = useSettings();
   const t = getT(settings.locale);
+  const isLight = settings.theme === 'light';
   const uid = useId().replace(/:/g, '');
   const listboxId = `${uid}-spotlight-lb`;
   const optionPrefix = `${uid}-spotlight-opt`;
@@ -232,17 +233,25 @@ export default function SearchSpotlightModal({
 
   return (
     <div
-      className="fixed inset-0 z-[240] flex items-start justify-center pt-[12vh] px-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[240] flex items-start justify-center pt-[12vh] px-4 backdrop-blur-sm"
+      style={{ backgroundColor: 'var(--backdrop-strong)' }}
       onClick={onClose}
     >
       <div
-        className="spotlight-panel-in w-full max-w-2xl rounded-2xl bg-sidebar border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className={`spotlight-panel-in w-full max-w-2xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ${
+          isLight ? 'border-black/10 shadow-black/15' : 'border-white/10'
+        }`}
+        style={{ backgroundColor: 'var(--surface-modal)' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={t.searchAriaLabel}
       >
-        <div className="px-4 pt-3 pb-2 border-b border-white/10 flex items-center gap-2 flex-shrink-0">
+        <div
+          className={`px-4 pt-3 pb-2 border-b flex items-center gap-2 flex-shrink-0 ${
+            isLight ? 'border-black/10' : 'border-white/10'
+          }`}
+        >
           <span className="material-symbols-outlined text-[18px] text-accent" aria-hidden>
             search
           </span>
@@ -259,9 +268,15 @@ export default function SearchSpotlightModal({
             aria-expanded={sliced.length > 0}
             aria-activedescendant={sliced.length > 0 ? `${optionPrefix}-${activeIndex}` : undefined}
             aria-autocomplete="list"
-            className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder-text-muted"
+            className={`flex-1 bg-transparent border-none outline-none text-sm placeholder-text-muted ${
+              isLight ? 'text-slate-900 placeholder:text-slate-500' : 'text-white'
+            }`}
           />
-          <span className="hidden md:inline-flex items-center gap-1 rounded-md border border-white/15 px-1.5 py-0.5 text-[10px] text-text-muted">
+          <span
+            className={`hidden md:inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-text-muted ${
+              isLight ? 'border-black/15' : 'border-white/15'
+            }`}
+          >
             <span className="text-[10px]">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘' : 'Ctrl'}</span>
             <span>+</span>
             <span className="text-[10px]">K</span>
@@ -271,7 +286,9 @@ export default function SearchSpotlightModal({
             type="button"
             onClick={onClose}
             onKeyDown={closeKeyDown}
-            className="ml-1 p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition"
+            className={`ml-1 p-1 rounded-lg text-text-muted transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+              isLight ? 'hover:text-slate-900 hover:bg-black/[0.06]' : 'hover:text-white hover:bg-white/10'
+            }`}
             aria-label={t.close}
           >
             <span className="material-symbols-outlined text-[18px]">close</span>
@@ -288,7 +305,11 @@ export default function SearchSpotlightModal({
           className="flex-1 min-h-0 max-h-[min(52vh,480px)] overflow-y-auto py-1"
         >
           {isRecentMode && sliced.length > 0 && (
-            <p className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            <p
+              className={`px-4 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                isLight ? 'text-slate-500' : 'text-text-muted'
+              }`}
+            >
               {t.searchRecentSection}
             </p>
           )}
@@ -316,9 +337,13 @@ export default function SearchSpotlightModal({
                           onOpen(item.url, { newTab: true });
                         }
                       }}
-                      className={`w-full px-4 py-2 text-left flex flex-col gap-0.5 text-xs transition ${
+                      className={`w-full px-4 py-2 text-left flex flex-col gap-0.5 text-xs transition rounded-lg mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/45 ${
                         isActive
-                          ? 'bg-accent/20 text-white'
+                          ? isLight
+                            ? 'bg-accent/20 text-slate-900 ring-1 ring-inset ring-accent/35 shadow-sm'
+                            : 'bg-accent/20 text-white ring-1 ring-inset ring-accent/30'
+                          : isLight
+                          ? 'bg-transparent text-slate-800 hover:bg-black/[0.05] hover:text-slate-900'
                           : 'bg-transparent text-text-secondary hover:bg-white/5 hover:text-white'
                       }`}
                     >
@@ -335,7 +360,9 @@ export default function SearchSpotlightModal({
                           {(item.tags ?? []).slice(0, 6).map((tag) => (
                             <span
                               key={tag}
-                              className="inline-block mr-1 mb-0.5 rounded bg-white/10 px-1.5 py-0.5 text-[9px]"
+                              className={`inline-block mr-1 mb-0.5 rounded px-1.5 py-0.5 text-[9px] ${
+                                isLight ? 'bg-black/[0.06] text-slate-600' : 'bg-white/10'
+                              }`}
                             >
                               #{tag}
                             </span>
@@ -351,18 +378,26 @@ export default function SearchSpotlightModal({
         </div>
 
         {visibleCount < total && (
-          <div className="px-4 py-2 border-t border-white/5 flex-shrink-0">
+          <div className={`px-4 py-2 border-t flex-shrink-0 ${isLight ? 'border-black/[0.06]' : 'border-white/5'}`}>
             <button
               type="button"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-              className="w-full py-2 rounded-lg text-xs font-medium border border-white/15 bg-white/5 text-accent hover:bg-white/10 transition"
+              className={`w-full py-2 rounded-lg text-xs font-medium border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isLight
+                  ? 'border-black/10 bg-black/[0.04] text-accent hover:bg-black/[0.08]'
+                  : 'border-white/15 bg-white/5 text-accent hover:bg-white/10'
+              }`}
             >
               {t.searchLoadMore}
             </button>
           </div>
         )}
 
-        <div className="px-4 py-2 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-shrink-0">
+        <div
+          className={`px-4 py-2 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-shrink-0 ${
+            isLight ? 'border-black/10' : 'border-white/10'
+          }`}
+        >
           <p className="text-[10px] text-text-muted">
             ↑↓ {t.searchOr} Enter · {newTabHint} · Esc {t.searchToClose}
           </p>

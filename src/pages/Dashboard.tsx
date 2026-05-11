@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -8,15 +7,13 @@ import {
   useSensors,
   pointerWithin,
   closestCenter,
-  useDroppable,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
   type Over,
 } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useAuth } from '../hooks/useAuth';
 import { useBookmarks } from '../hooks/useBookmarks';
 import { useBoardColumns } from '../hooks/useBoardColumns';
@@ -47,13 +44,20 @@ import {
 } from '../lib/searchBookmarks';
 import { buildBookmarksHtml, downloadHtml } from '../lib/exportHtml';
 import { parseNetscapeBookmarksHtml } from '../lib/parseBookmarksHtml';
-
-/** Fallback dot colors when category.color is not set (schema default #818CF8 = accent) */
-const FALLBACK_DOT_COLORS = [
-  '#818CF8', '#10B981', '#A855F7', '#FB923C', '#EC4899', '#3B82F6', '#EAB308', '#06B6D4',
-];
-
-const COLUMN_DROP_PREFIX = 'column-';
+import {
+  COLUMN_DROP_PREFIX,
+  DROP_INDICATOR_BLOCK_CLASS,
+  FALLBACK_DOT_COLORS,
+  categoryGridColsClass,
+} from './dashboard/boardGrid';
+import { ColumnDroppable } from './dashboard/ColumnDroppable';
+import { CategoryGridSkeleton } from './dashboard/CategoryGridSkeleton';
+import { CategoryCard } from './dashboard/CategoryCard';
+import { SortableCategoryCard } from './dashboard/SortableCategoryCard';
+import { MoveBookmarkModal } from './dashboard/MoveBookmarkModal';
+import { DashboardSidebar } from './dashboard/DashboardSidebar';
+import { DashboardHeader } from './dashboard/DashboardHeader';
+import { DashboardBoardToolbar } from './dashboard/DashboardBoardToolbar';
 
 /** Prefer pointer position; fallback to closest center when pointer is in gap between columns */
 const categoryCollisionDetection: CollisionDetection = (args) => {
@@ -61,195 +65,6 @@ const categoryCollisionDetection: CollisionDetection = (args) => {
   if (pointer.length > 0) return pointer;
   return closestCenter(args);
 };
-
-function ColumnDroppable({
-  columnId,
-  children,
-  className,
-  isEmpty,
-}: {
-  columnId: string;
-  children: React.ReactNode;
-  className?: string;
-  isEmpty?: boolean;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: COLUMN_DROP_PREFIX + columnId });
-  return (
-    <div
-      ref={setNodeRef}
-      className={[
-        className ?? '',
-        'rounded-xl transition-all duration-200',
-        isOver
-          ? 'bg-accent/15 ring-2 ring-accent/50 ring-offset-0 min-h-[120px] transition-[box-shadow,background-color] duration-150'
-          : '',
-      ].join(' ')}
-    >
-      {children}
-      {isEmpty && isOver && (
-        <div className="flex items-center justify-center h-20 text-accent/60 text-xs font-medium select-none">
-          <span className="material-symbols-outlined text-base mr-1">add_circle</span>
-          Thả vào đây
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** When over is column: { columnId, insertAtStart }; used for intent + visual */
-type ColumnDropIndicator = { columnId: string; insertAtStart: boolean } | null;
-
-/** Shows where a category will be inserted: above or below this card */
-const DROP_INDICATOR_CLASS =
-  'absolute left-0 right-0 h-[3px] rounded-full bg-accent pointer-events-none z-10 drop-indicator-line';
-const DROP_INDICATOR_BLOCK_CLASS =
-  'h-[3px] rounded-full bg-accent pointer-events-none flex-shrink-0 drop-indicator-line';
-
-function categoryGridColsClass(n: number): string {
-  if (n === 2) return 'category-grid-cols-2';
-  if (n === 3) return 'category-grid-cols-3';
-  if (n === 5) return 'category-grid-cols-5';
-  if (n === 6) return 'category-grid-cols-6';
-  return 'category-grid-cols-4';
-}
-
-function CategoryGridSkeleton({ numCols }: { numCols: number }) {
-  const n = Math.min(6, Math.max(2, Math.round(numCols)));
-  return (
-    <div
-      className={`category-grid ${categoryGridColsClass(n)}`}
-      aria-busy="true"
-      aria-label="Loading"
-    >
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="category-grid-item space-y-3">
-          <div className="rounded-xl border border-white/10 overflow-hidden glass-panel min-h-[200px]">
-            <div className="h-10 border-b border-white/10 skeleton-shimmer" />
-            <div className="p-3 space-y-2.5">
-              <div className="h-9 skeleton-shimmer rounded-lg" />
-              <div className="h-9 skeleton-shimmer rounded-lg" />
-              <div className="h-9 skeleton-shimmer rounded-lg" />
-              <div className="h-9 skeleton-shimmer rounded-lg w-4/5" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SortableCategoryCard({
-  category,
-  activeCategoryId,
-  dropIndicator,
-  fallbackDotColor,
-  searchQuery,
-  onOpenBookmark,
-  cardHeight,
-  fillContent,
-  categoryMenuId,
-  onOpenCategoryMenu,
-  onEditCategory,
-  onDuplicateCategory,
-  onDeleteCategory,
-  onAddBookmark,
-  onMoveCategory,
-  onEditBookmark,
-  onDuplicateBookmark,
-  onMoveBookmark,
-  onDeleteBookmark,
-  dragDropBookmark,
-  draggedBookmark,
-  dropBookmarkTarget,
-  onBookmarkDragStart,
-  onBookmarkDragOver,
-  onBookmarkDrop,
-  onBookmarkDragEnd,
-  disabled,
-}: {
-  category: Category & { bookmarks: Bookmark[] };
-  activeCategoryId: string | null;
-  /** When dragging, indicates insert above/below this card */
-  dropIndicator?: { overId: string; insertAbove: boolean } | null;
-  fallbackDotColor: string;
-  searchQuery: string;
-  onOpenBookmark: (url: string) => void;
-  cardHeight: 'auto' | 'equal';
-  fillContent: boolean;
-  categoryMenuId: string | null;
-  onOpenCategoryMenu: (id: string) => void;
-  onEditCategory: () => void;
-  onDuplicateCategory?: () => void;
-  onDeleteCategory: () => void;
-  onAddBookmark: () => void;
-  onMoveCategory?: () => void;
-  onEditBookmark: (b: Bookmark) => void;
-  onDuplicateBookmark?: (b: Bookmark) => void;
-  onMoveBookmark?: (b: Bookmark) => void;
-  onDeleteBookmark: (b: Bookmark) => void;
-  dragDropBookmark?: boolean;
-  draggedBookmark?: { id: string; categoryId: string } | null;
-  dropBookmarkTarget?: { id: string; categoryId: string; index: number } | null;
-  onBookmarkDragStart?: (e: React.DragEvent, bookmarkId: string) => void;
-  onBookmarkDragOver?: (e: React.DragEvent, bookmarkId: string, index: number) => void;
-  onBookmarkDrop?: (e: React.DragEvent) => void;
-  onBookmarkDragEnd?: () => void;
-  disabled?: boolean;
-}) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: category.id,
-    transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
-    disabled,
-  });
-  const isActive = isDragging || activeCategoryId === category.id;
-  const showLineAbove = false;
-  const showLineBelow = false;
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    pointerEvents: isActive ? 'none' : undefined,
-  };
-  return (
-    <div ref={setNodeRef} style={style} className={`break-inside-avoid category-grid-item relative ${isActive ? 'drag-placeholder' : ''}`}>
-      {showLineAbove && <div className={DROP_INDICATOR_CLASS} style={{ top: -6 }} aria-hidden />}
-      <CategoryCard
-        dragHandleProps={
-          !disabled
-            ? { setActivatorNodeRef, attributes, listeners }
-            : undefined
-        }
-        category={category}
-        fallbackDotColor={fallbackDotColor}
-        searchQuery={searchQuery}
-        onOpenBookmark={onOpenBookmark}
-        cardHeight={cardHeight}
-        fillContent={fillContent}
-        categoryMenuId={categoryMenuId}
-        onOpenCategoryMenu={onOpenCategoryMenu}
-        onEditCategory={onEditCategory}
-        onDuplicateCategory={onDuplicateCategory}
-        onDeleteCategory={onDeleteCategory}
-        onAddBookmark={onAddBookmark}
-        onMoveCategory={onMoveCategory}
-        onEditBookmark={onEditBookmark}
-        onDuplicateBookmark={onDuplicateBookmark}
-        onMoveBookmark={onMoveBookmark}
-        onDeleteBookmark={onDeleteBookmark}
-        dragDropCategory={true}
-        sortableWrapper={true}
-        isDraggingCategory={isDragging || activeCategoryId === category.id}
-        dragDropBookmark={dragDropBookmark}
-        draggedBookmark={draggedBookmark}
-        dropBookmarkTarget={dropBookmarkTarget}
-        onBookmarkDragStart={onBookmarkDragStart}
-        onBookmarkDragOver={onBookmarkDragOver}
-        onBookmarkDrop={onBookmarkDrop}
-        onBookmarkDragEnd={onBookmarkDragEnd}
-      />
-      {showLineBelow && <div className={DROP_INDICATOR_CLASS} style={{ bottom: -6 }} aria-hidden />}
-    </div>
-  );
-}
 
 interface DashboardProps {
   initialAddBookmark?: { url: string; title: string };
@@ -311,8 +126,6 @@ export default function Dashboard({
   const [draggedBoardId, setDraggedBoardId] = useState<string | null>(null);
   const [dropBoardIndex, setDropBoardIndex] = useState<number | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{ overId: string; insertAbove: boolean } | null>(null);
-  const [columnDropIndicator, setColumnDropIndicator] = useState<ColumnDropIndicator>(null);
   const [draggedBookmark, setDraggedBookmark] = useState<{ id: string; categoryId: string } | null>(null);
   const [dropBookmarkTarget, setDropBookmarkTarget] = useState<{ id: string; categoryId: string; index: number } | null>(null);
 
@@ -415,7 +228,7 @@ export default function Dashboard({
   }, [searchTerm, searchQuery, boards, allCategories, allBookmarks]);
 
   const spotlightItems: SpotlightItem[] = useMemo(() => {
-    if (!allBookmarks.length) return [];
+    if (!spotlightOpen || !allBookmarks.length) return [];
     return allBookmarks.map((bm) => {
       const cat = allCategories.find((c) => c.id === bm.category_id);
       const board = cat ? boards.find((b) => b.id === cat.board_id) : undefined;
@@ -430,7 +243,7 @@ export default function Dashboard({
         updatedAt: bm.updated_at,
       };
     });
-  }, [allBookmarks, allCategories, boards]);
+  }, [spotlightOpen, allBookmarks, allCategories, boards]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -609,14 +422,6 @@ export default function Dashboard({
     chromeStorageAdapter.setItem('lastSelectedBoardId', selectedBoardId);
   }, [selectedBoardId]);
 
-  const focusSearch = useCallback(() => {
-    if (spotlightOpen) return;
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-      searchInputRef.current.select();
-    }
-  }, [spotlightOpen]);
-
   const openSpotlight = useCallback(() => {
     setSpotlightOpen(true);
   }, []);
@@ -669,22 +474,49 @@ export default function Dashboard({
   const effectiveSortOrder: CategorySortOrder =
     (selectedBoard?.category_sort_order as CategorySortOrder | undefined) ?? settings.categorySortOrder;
 
-  const categorySortCompare = useCallback(
-    (a: Category & { bookmarks: Bookmark[] }, b: Category & { bookmarks: Bookmark[] }) => {
-      switch (effectiveSortOrder) {
-        case 'created_asc':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'created_desc':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        case 'name_asc':
-          return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
-        case 'name_desc':
-          return (b.name || '').localeCompare(a.name || '', undefined, { sensitivity: 'base' });
-        default:
-          return a.sort_order - b.sort_order;
+  const persistBoardColumnCount = useCallback(
+    async (v: 2 | 3 | 4 | 5 | 6) => {
+      if (!selectedBoardId) return;
+      setBoards((prev) =>
+        prev.map((b) => (b.id === selectedBoardId ? { ...b, category_columns: v } : b))
+      );
+      const { error } = await supabase
+        .from('boards')
+        .update({ category_columns: v, updated_at: new Date().toISOString() })
+        .eq('id', selectedBoardId);
+      const tLoc = getT(settings.locale);
+      if (error) {
+        await refetchBoards();
+        setToast({ message: tLoc.boardUpdateFailed, type: 'error' });
+      } else {
+        await refetchBoards();
       }
     },
-    [effectiveSortOrder]
+    [selectedBoardId, setBoards, refetchBoards, settings.locale]
+  );
+
+  const persistBoardSortOrder = useCallback(
+    async (v: CategorySortOrder) => {
+      if (!selectedBoardId) return;
+      setBoards((prev) =>
+        prev.map((b) => (b.id === selectedBoardId ? { ...b, category_sort_order: v } : b))
+      );
+      const { error } = await supabase
+        .from('boards')
+        .update({
+          category_sort_order: v,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', selectedBoardId);
+      const tLoc = getT(settings.locale);
+      if (error) {
+        await refetchBoards();
+        setToast({ message: tLoc.boardUpdateFailed, type: 'error' });
+      } else {
+        await refetchBoards();
+      }
+    },
+    [selectedBoardId, setBoards, refetchBoards, settings.locale]
   );
 
   // Assign column_id only to categories that have null column_id (never assigned)
@@ -1446,6 +1278,21 @@ export default function Dashboard({
     !searchTerm.trim() &&
     ((categoriesLoading && categories.length === 0) || (columnsLoading && boardColumns.length === 0));
 
+  const isLightContent = settings.theme === 'light';
+  const globalSearchListBtnClass = isLightContent
+    ? 'w-full text-left px-3 py-1.5 rounded-lg border border-black/10 bg-white/85 hover:bg-accent/15 text-xs text-slate-900 shadow-sm transition flex items-center justify-between'
+    : 'w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex items-center justify-between';
+  const globalSearchBookmarkBtnClass = isLightContent
+    ? 'w-full text-left px-3 py-1.5 rounded-lg border border-black/10 bg-white/85 hover:bg-accent/15 text-xs text-slate-900 shadow-sm transition flex flex-col items-start'
+    : 'w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex flex-col items-start';
+  const searchSectionHeadingClass = isLightContent
+    ? 'text-[11px] font-semibold uppercase text-slate-500 tracking-wider mb-1'
+    : 'text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1';
+  const emptyCategoriesCardClass = isLightContent
+    ? 'max-w-md mx-auto my-6 rounded-2xl border border-dashed border-black/15 bg-white/80 px-6 py-8 text-center shadow-sm'
+    : 'max-w-md mx-auto my-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-8 text-center';
+  const emptyCategoriesTitleClass = isLightContent ? 'text-sm font-semibold text-slate-900' : 'text-sm font-semibold text-white';
+
   return (
     <div
       className="bg-main font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
@@ -1483,196 +1330,45 @@ export default function Dashboard({
               : 'radial-gradient(ellipse 88% 50% at 50% -8%, rgba(129,140,248,0.14), transparent 48%), radial-gradient(ellipse 70% 55% at 100% 100%, rgba(0,0,0,0.42), transparent)',
         }}
       />
-      {/* Mobile: tap ngoài sidebar để đóng (nút menu header nằm dưới lớp sidebar z-40) */}
-      {sidebarOpen && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-[35] bg-black/55 backdrop-blur-[1px] md:hidden border-0 p-0 cursor-pointer"
-          aria-label={tDash.sidebarCloseMenu}
-        />
-      )}
-      {/* Sidebar */}
-      <aside
-        className={`border-r border-white/10 flex flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-        style={
-          settings.headerSidebarColorEffect !== false
-            ? {
-                backgroundColor: 'transparent',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-              }
-            : settings.theme === 'light'
-            ? { backgroundColor: '#e5e5e5' }
-            : { backgroundColor: '#1E293B' }
-        }
-      >
-        <div className="h-12 flex items-center justify-between gap-2 px-4 border-b border-white/10">
-          <div className="flex items-center gap-2 text-accent group cursor-pointer min-w-0">
-            <div className="p-1.5 bg-accent/10 rounded-lg group-hover:bg-accent/20 transition-colors flex-shrink-0">
-              <span className="material-symbols-outlined text-[18px]">hub</span>
-            </div>
-            <span className="font-semibold text-sm tracking-tight text-white truncate">LinkHub</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="md:hidden flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-text-muted transition-colors duration-150 hover:bg-white/10 hover:text-white active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-            aria-label={tDash.sidebarCloseMenu}
-          >
-            <span className="material-symbols-outlined text-[18px] leading-none">close</span>
-          </button>
-        </div>
-        <div className="px-3 pt-2 pb-1 space-y-0.5">
-          <button
-            type="button"
-            onClick={() => setAuthenticatorModalOpen(true)}
-            className={`flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary border border-transparent transition ${
-              settings.theme === 'light' ? 'sidebar-item-hover hover:text-text-primary' : 'hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px] text-accent">shield</span>
-            <span>{getT(settings.locale).authenticator}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setItToolboxModalOpen(true)}
-            className={`flex items-center gap-2 w-full px-2.5 py-2 text-xs font-medium rounded-lg text-left text-text-secondary border border-transparent transition ${
-              settings.theme === 'light' ? 'sidebar-item-hover hover:text-text-primary' : 'hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px] text-accent">build</span>
-            <span>IT Tool box</span>
-          </button>
-        </div>
-        <div className="px-3 pt-3 pb-1.5 flex items-center justify-between">
-          <span className="text-[12px] font-semibold uppercase text-text-muted tracking-wider">Boards</span>
-          <button
-            type="button"
-            onClick={() => { setBoardEditing(null); setBoardModalOpen(true); }}
-            className={`p-1 rounded-lg text-text-muted transition ${
-              settings.theme === 'light' ? 'sidebar-item-hover hover:text-accent' : 'hover:text-accent hover:bg-white/5'
-            }`}
-            aria-label="Add board"
-          >
-            <span className="material-icons-round text-base">add_circle_outline</span>
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-3">
-          {boardsLoading && boards.length === 0 && (
-            <div className="px-1 py-2 space-y-2" aria-hidden>
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-9 rounded-lg skeleton-shimmer border border-white/5" />
-              ))}
-            </div>
-          )}
-          {/* Boards loading: hiển thị Toast thay vì text inline */}
-          {boards.map((board, boardIndex) => (
-            <React.Fragment key={board.id}>
-              {settings.dragDrop.board && draggedBoardId && dropBoardIndex === boardIndex && (
-                <div className="h-1 rounded-full bg-accent shadow-[0_0_10px_rgba(129,140,248,0.7)] transition-all duration-150 mx-1 mb-0.5 flex-shrink-0" aria-hidden />
-              )}
-              <div
-                ref={boardMenuId === board.id ? boardMenuRef : undefined}
-                draggable={settings.dragDrop.board}
-                onDragStart={(e) => settings.dragDrop.board && handleBoardDragStart(e, board.id)}
-                onDragOver={(e) => settings.dragDrop.board && handleBoardDragOver(e, boardIndex)}
-                onDrop={settings.dragDrop.board ? handleBoardDrop : undefined}
-                onDragEnd={settings.dragDrop.board ? handleBoardDragEnd : undefined}
-                className={`relative transition-all duration-150 ${settings.dragDrop.board ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedBoardId === board.id ? 'opacity-40 scale-[0.98]' : ''}`}
-              >
-              <button
-                ref={boardMenuId === board.id ? boardTriggerRef : undefined}
-                type="button"
-                onClick={() => setSelectedBoardId(board.id)}
-                className={`flex items-center justify-between w-full px-2.5 py-2 text-xs font-medium rounded-lg transition text-left ${
-                  selectedBoardId === board.id
-                    ? 'bg-accent/15 text-accent border border-accent/25 shadow-[0_0_12px_rgba(129,140,248,0.12)]'
-                    : 'text-text-secondary hover:bg-white/5 hover:text-white border border-transparent'
-                } ${
-                  settings.theme === 'light'
-                    ? selectedBoardId === board.id
-                      ? '!bg-transparent !border-transparent !shadow-none border-l-2 border-l-accent'
-                      : 'sidebar-item-hover hover:text-text-primary'
-                    : ''
-                }`}
-              >
-                <span className="truncate">{board.name}</span>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => { e.stopPropagation(); setBoardMenuId((id) => (id === board.id ? null : board.id)); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setBoardMenuId((id) => (id === board.id ? null : board.id));
-                    }
-                  }}
-                  className={`p-1 rounded flex-shrink-0 cursor-pointer ${settings.theme === 'light' ? 'sidebar-item-hover' : 'hover:bg-white/10'}`}
-                  aria-label="Menu"
-                >
-                  <span className="material-icons-round text-[14px] opacity-60">more_horiz</span>
-                </div>
-              </button>
-              {boardMenuId === board.id && (
-                <div
-                  ref={boardDropdownRef}
-                  className={`absolute left-0 right-0 rounded-lg border border-white/10 bg-sidebar shadow-xl py-1 z-50 ${openBoardMenuAbove ? 'bottom-full mb-0.5' : 'top-full mt-0.5'}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => { setBoardEditing(board); setBoardModalOpen(true); setBoardMenuId(null); }}
-                    className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white"
-                  >
-                    <span className="material-icons-round text-[16px]">edit</span>
-                    {getT(settings.locale).edit}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleDuplicateBoard(board); setBoardMenuId(null); }}
-                    className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white"
-                  >
-                    <span className="material-icons-round text-[16px]">content_copy</span>
-                    {getT(settings.locale).duplicate}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleDeleteBoard(board); setBoardMenuId(null); }}
-                    className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20"
-                  >
-                    <span className="material-icons-round text-[16px]">delete</span>
-                    {getT(settings.locale).delete}
-                  </button>
-                </div>
-              )}
-            </div>
-            </React.Fragment>
-          ))}
-          {!boardsLoading && boards.length === 0 && (
-            <div className="mx-1 my-2 rounded-xl border border-dashed border-white/15 bg-white/[0.04] p-4 text-center">
-              <span className="material-symbols-outlined text-[36px] text-accent/85 mb-2 block" aria-hidden>
-                dashboard_customize
-              </span>
-              <p className="text-xs font-semibold text-white">{tDash.emptyBoardsTitle}</p>
-              <p className="text-[11px] text-text-muted mt-1.5 mb-3 leading-relaxed">{tDash.emptyBoardsBody}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setBoardEditing(null);
-                  setBoardModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent/25 border border-accent/40 text-accent text-xs font-medium px-3 py-2 hover:bg-accent/35 transition"
-              >
-                <span className="material-symbols-outlined text-[16px]">add</span>
-                {tDash.emptyBoardsCta}
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
+      <DashboardSidebar
+        sidebarOpen={sidebarOpen}
+        onCloseSidebar={() => setSidebarOpen(false)}
+        boards={boards}
+        boardsLoading={boardsLoading}
+        selectedBoardId={selectedBoardId}
+        onSelectBoard={(id) => setSelectedBoardId(id)}
+        boardMenuId={boardMenuId}
+        onToggleBoardMenu={(id) => setBoardMenuId((cur) => (cur === id ? null : id))}
+        boardMenuRef={boardMenuRef}
+        boardTriggerRef={boardTriggerRef}
+        boardDropdownRef={boardDropdownRef}
+        openBoardMenuAbove={openBoardMenuAbove}
+        draggedBoardId={draggedBoardId}
+        dropBoardIndex={dropBoardIndex}
+        onBoardDragStart={handleBoardDragStart}
+        onBoardDragOver={handleBoardDragOver}
+        onBoardDrop={handleBoardDrop}
+        onBoardDragEnd={handleBoardDragEnd}
+        onEditBoard={(board) => {
+          setBoardEditing(board);
+          setBoardModalOpen(true);
+          setBoardMenuId(null);
+        }}
+        onDuplicateBoard={(board) => {
+          handleDuplicateBoard(board);
+          setBoardMenuId(null);
+        }}
+        onDeleteBoard={(board) => {
+          handleDeleteBoard(board);
+          setBoardMenuId(null);
+        }}
+        onOpenNewBoardModal={() => {
+          setBoardEditing(null);
+          setBoardModalOpen(true);
+        }}
+        onOpenAuthenticator={() => setAuthenticatorModalOpen(true)}
+        onOpenItToolbox={() => setItToolboxModalOpen(true)}
+      />
 
       {/* Main */}
       <main
@@ -1680,309 +1376,48 @@ export default function Dashboard({
           sidebarOpen ? 'md:ml-64' : 'md:ml-0'
         }`}
       >
-        <header
-          className="h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b border-white/10"
-          style={
-            settings.headerSidebarColorEffect !== false
-              ? {
-                  backgroundColor: 'transparent',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                }
-              : settings.theme === 'light'
-              ? { backgroundColor: '#e5e5e5' }
-              : { backgroundColor: '#1E293B' }
-          }
-        >
-          <div className="flex items-center flex-1 max-w-md">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((o) => !o)}
-              className="mr-2 p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 md:mr-3"
-              aria-label="Toggle sidebar"
-            >
-              <span className="material-icons-round text-[20px]">
-                {sidebarOpen ? 'menu_open' : 'menu'}
-              </span>
-            </button>
-            <div className="relative flex-1 group">
-              <span className="material-symbols-outlined text-text-muted absolute left-3 top-1/2 -translate-y-1/2 text-[18px] transition-colors group-focus-within:text-accent">search</span>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={getT(settings.locale).searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white/5 border border-white/10 text-xs text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40 block w-full pl-9 pr-3 py-1.5 rounded-lg transition-all"
-              />
-            </div>
-          </div>
-          <div className="hidden lg:flex items-center gap-1.5 mx-1 text-[10px] tabular-nums flex-shrink-0">
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/90">
-              <span className="material-symbols-outlined text-[14px] text-accent/90">view_kanban</span>
-              <span className="font-semibold text-white">{boards.length}</span>
-              <span className="text-text-muted font-normal">{tDash.dashboardStatBoards}</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/90">
-              <span className="material-symbols-outlined text-[14px] text-accent/90">bookmark</span>
-              <span className="font-semibold text-white">{dashboardBookmarkTotal}</span>
-              <span className="text-text-muted font-normal">{tDash.dashboardStatBookmarks}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2 ml-2 md:ml-4">
-            <button
-              type="button"
-              onClick={() => (window.location.hash = '#/landing')}
-              className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-100 hover:bg-white/10"
-            >
-              <span className="material-symbols-outlined text-[14px]">home</span>
-              <span>{getT(settings.locale).landingGoBackToLanding}</span>
-              <span className="ml-1 rounded border border-white/20 px-1 py-0.5 text-[9px] font-medium opacity-60">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}</span>
-            </button>
-            <div className="relative flex items-center gap-1.5" ref={userMenuRef}>
-              <button
-                ref={userTriggerRef}
-                type="button"
-                onClick={() => setUserMenuOpen((o) => !o)}
-                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg transition bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10"
-              >
-                <div className="h-7 w-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-semibold text-xs ring-1 ring-white/10">
-                  {user?.email?.slice(0, 1).toUpperCase() ?? '?'}
-                </div>
-                <div className="flex flex-col items-start max-w-[120px]">
-                  <span className="text-xs font-medium text-white leading-tight truncate w-full">
-                    {user?.user_metadata?.full_name ?? user?.email ?? 'User'}
-                  </span>
-                  <span className="text-[11px] text-text-muted leading-tight">Member</span>
-                </div>
-                <span className={`material-icons-round text-text-muted text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
-              </button>
-              {userMenuOpen && (
-                <div
-                  ref={userDropdownRef}
-                  className={`absolute right-0 w-48 rounded-lg border border-white/10 bg-sidebar shadow-xl shadow-black/40 py-1 z-[110] overflow-hidden ${openUserMenuAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
-                >
-                  <div className="px-3 py-2 border-b border-white/10">
-                    <p className="text-[11px] font-medium text-text-muted uppercase tracking-wider">{getT(settings.locale).signedInAs}</p>
-                    <p className="text-xs font-medium text-white truncate mt-0.5">{user?.email}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setSettingsModalOpen(true); setUserMenuOpen(false); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white transition"
-                  >
-                    <span className="material-symbols-outlined text-base text-accent">settings</span>
-                    {getT(settings.locale).settings}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { handleSignOut(); setUserMenuOpen(false); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-red-500/20 hover:text-red-400 transition"
-                  >
-                  <span className="material-symbols-outlined text-base">logout</span>
-                    {getT(settings.locale).logOut}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <div className="px-4 py-3 z-10 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => { setCategoryEditing(null); setCategoryModalOpen(true); }}
-              disabled={!selectedBoardId || boards.length === 0}
-              title={boards.length === 0 ? getT(settings.locale).createBoardFirst : undefined}
-              className="glass-panel text-white hover:bg-accent hover:border-accent text-xs font-medium px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[16px]">add</span>
-              {getT(settings.locale).createCategory}
-            </button>
-            <button
-              type="button"
-              onClick={() => openAddBookmark()}
-              className="glass-panel text-text-secondary hover:text-white hover:bg-white/10 text-xs font-medium px-3 py-2 rounded-lg transition flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[16px]">link</span>
-              {getT(settings.locale).addBookmark}
-            </button>
-          </div>
-          <div className="relative min-w-[200px] max-md:hidden">
-            <button
-              type="button"
-              ref={columnConfigTriggerRef}
-              onClick={() => setColumnConfigPopupOpen((o) => !o)}
-              disabled={!selectedBoardId}
-              title={!selectedBoardId ? getT(settings.locale).createBoardFirst : undefined}
-              className="w-full glass-panel text-left text-text-secondary hover:text-white hover:bg-white/10 text-xs font-medium py-2.5 px-3 rounded-lg border border-white/10 transition flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-white/80">view_column</span>
-                <span>{getT(settings.locale).boardOptions}</span>
-              </span>
-              <span className="material-icons-round text-[18px] text-white/60 flex-shrink-0">
-                {columnConfigPopupOpen ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
-            {columnConfigPopupOpen && columnConfigPopupRect &&
-              createPortal(
-                <div
-                  ref={columnConfigPopupRef}
-                  role="dialog"
-                  aria-label="Board Options"
-                  style={{
-                    position: 'fixed',
-                    top: columnConfigPopupRect.top,
-                    left: Math.max(8, columnConfigPopupRect.left),
-                    zIndex: 10000,
-                  }}
-                  className="w-[260px] rounded-lg border border-white/10 bg-sidebar shadow-xl shadow-black/40 py-3 px-4"
-                >
-                  <p className="text-xs font-medium text-text-secondary mb-2">
-                    {getT(settings.locale).categoryColumns}
-                    <span className="tabular-nums text-accent font-semibold ml-1">({numColumnsPreferred})</span>
-                  </p>
-                  <div className="flex items-center gap-2 mb-4">
-                    <button
-                      type="button"
-                      disabled={!selectedBoardId || numColumnsPreferred <= 2}
-                      onClick={async () => {
-                        if (!selectedBoardId || numColumnsPreferred <= 2) return;
-                        const v = (numColumnsPreferred - 1) as 2 | 3 | 4 | 5 | 6;
-                        setBoards((prev) =>
-                          prev.map((b) =>
-                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
-                          )
-                        );
-                        const { error } = await supabase
-                          .from('boards')
-                          .update({ category_columns: v, updated_at: new Date().toISOString() })
-                          .eq('id', selectedBoardId);
-                        if (error) {
-                          await refetchBoards();
-                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
-                        } else {
-                          await refetchBoards();
-                        }
-                      }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-white/10 hover:bg-accent/30 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-                      aria-label="-"
-                    >
-                      <span className="material-icons-round text-[18px]">remove</span>
-                    </button>
-                    <input
-                      type="range"
-                      min={2}
-                      max={6}
-                      step={1}
-                      value={numColumnsPreferred}
-                      disabled={!selectedBoardId}
-                      onChange={async (e) => {
-                        const v = Number(e.target.value) as 2 | 3 | 4 | 5 | 6;
-                        if (!selectedBoardId) return;
-                        setBoards((prev) =>
-                          prev.map((b) =>
-                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
-                          )
-                        );
-                        const { error } = await supabase
-                          .from('boards')
-                          .update({ category_columns: v, updated_at: new Date().toISOString() })
-                          .eq('id', selectedBoardId);
-                        if (error) {
-                          await refetchBoards();
-                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
-                        } else {
-                          await refetchBoards();
-                        }
-                      }}
-                      className="flex-1 h-2.5 rounded-full appearance-none bg-white/10 accent-accent cursor-pointer disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
-                    />
-                    <button
-                      type="button"
-                      disabled={!selectedBoardId || numColumnsPreferred >= 6}
-                      onClick={async () => {
-                        if (!selectedBoardId || numColumnsPreferred >= 6) return;
-                        const v = (numColumnsPreferred + 1) as 2 | 3 | 4 | 5 | 6;
-                        setBoards((prev) =>
-                          prev.map((b) =>
-                            b.id === selectedBoardId ? { ...b, category_columns: v } : b
-                          )
-                        );
-                        const { error } = await supabase
-                          .from('boards')
-                          .update({ category_columns: v, updated_at: new Date().toISOString() })
-                          .eq('id', selectedBoardId);
-                        if (error) {
-                          await refetchBoards();
-                          setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
-                        } else {
-                          await refetchBoards();
-                        }
-                      }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-white/10 hover:bg-accent/30 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-                      aria-label="+"
-                    >
-                      <span className="material-icons-round text-[18px]">add</span>
-                    </button>
-                  </div>
-                  <div className="border-t border-white/10 pt-3">
-                    <p className="text-xs font-medium text-text-secondary mb-2">
-                      {getT(settings.locale).categorySortOrder}
-                    </p>
-                    <div className="flex flex-col gap-1">
-                      {(
-                        [
-                          ['created_asc', getT(settings.locale).categorySortCreatedAsc],
-                          ['created_desc', getT(settings.locale).categorySortCreatedDesc],
-                          ['name_asc', getT(settings.locale).categorySortNameAsc],
-                          ['name_desc', getT(settings.locale).categorySortNameDesc],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          disabled={!selectedBoardId}
-                          onClick={async () => {
-                            if (!selectedBoardId) return;
-                            const v = value as CategorySortOrder;
-                            setBoards((prev) =>
-                              prev.map((b) =>
-                                b.id === selectedBoardId ? { ...b, category_sort_order: v } : b
-                              )
-                            );
-                            const { error } = await supabase
-                              .from('boards')
-                              .update({
-                                category_sort_order: v,
-                                updated_at: new Date().toISOString(),
-                              })
-                              .eq('id', selectedBoardId);
-                            if (error) {
-                              await refetchBoards();
-                              setToast({ message: getT(settings.locale).boardUpdateFailed, type: 'error' });
-                            } else {
-                              await refetchBoards();
-                            }
-                          }}
-                          className={`w-full text-left py-1.5 px-2 rounded-md text-xs transition cursor-pointer ${
-                            effectiveSortOrder === value
-                              ? 'bg-accent/20 text-accent font-medium'
-                              : 'text-text-secondary hover:bg-white/10 hover:text-white'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>,
-                document.body
-              )}
-          </div>
-        </div>
+        <DashboardHeader
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((o) => !o)}
+          searchInputRef={searchInputRef}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          boards={boards}
+          dashboardBookmarkTotal={dashboardBookmarkTotal}
+          user={user}
+          userMenuRef={userMenuRef}
+          userTriggerRef={userTriggerRef}
+          userDropdownRef={userDropdownRef}
+          userMenuOpen={userMenuOpen}
+          onToggleUserMenu={() => setUserMenuOpen((o) => !o)}
+          openUserMenuAbove={openUserMenuAbove}
+          onOpenSettings={() => {
+            setSettingsModalOpen(true);
+            setUserMenuOpen(false);
+          }}
+          onSignOut={() => {
+            handleSignOut();
+            setUserMenuOpen(false);
+          }}
+        />
+        <DashboardBoardToolbar
+          selectedBoardId={selectedBoardId}
+          boardsLength={boards.length}
+          numColumnsPreferred={numColumnsPreferred}
+          effectiveSortOrder={effectiveSortOrder}
+          columnConfigPopupOpen={columnConfigPopupOpen}
+          columnConfigPopupRect={columnConfigPopupRect}
+          onToggleColumnPopup={() => setColumnConfigPopupOpen((o) => !o)}
+          columnConfigTriggerRef={columnConfigTriggerRef}
+          columnConfigPopupRef={columnConfigPopupRef}
+          onCreateCategory={() => {
+            setCategoryEditing(null);
+            setCategoryModalOpen(true);
+          }}
+          onAddBookmark={() => openAddBookmark()}
+          persistBoardColumnCount={persistBoardColumnCount}
+          persistBoardSortOrder={persistBoardSortOrder}
+        />
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 z-10 min-w-0">
           {boardsError && (
@@ -1994,7 +1429,7 @@ export default function Dashboard({
               {!searchDataLoading && globalSearchResults && (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                    <p className={searchSectionHeadingClass}>
                       {tDash.searchGlobalBoards}
                     </p>
                     {globalSearchResults.boardMatches.length === 0 ? (
@@ -2006,7 +1441,7 @@ export default function Dashboard({
                             <button
                               type="button"
                               onClick={() => { setSelectedBoardId(b.id); setSearchQuery(''); }}
-                              className="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex items-center justify-between"
+                              className={globalSearchListBtnClass}
                             >
                               <span className="truncate">{b.name}</span>
                               <span className="text-[11px] text-text-muted ml-2">{tDash.searchGlobalBoards}</span>
@@ -2017,7 +1452,7 @@ export default function Dashboard({
                     )}
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                    <p className={searchSectionHeadingClass}>
                       {tDash.searchGlobalCategories}
                       {selectedBoardId && boards.find((b) => b.id === selectedBoardId)?.name ? (
                         <span className="font-normal text-text-muted normal-case ml-1">
@@ -2036,7 +1471,7 @@ export default function Dashboard({
                               <button
                                 type="button"
                                 onClick={() => { setSelectedBoardId(c.board_id); setSearchQuery(''); }}
-                                className="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex items-center justify-between"
+                                className={globalSearchListBtnClass}
                               >
                                 <span className="truncate">{c.name}</span>
                                 <span className="text-[11px] text-text-muted ml-2 truncate max-w-[160px]">
@@ -2050,7 +1485,7 @@ export default function Dashboard({
                     )}
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold uppercase text-text-muted tracking-wider mb-1">
+                    <p className={searchSectionHeadingClass}>
                       {tDash.searchGlobalBookmarks}
                     </p>
                     {globalSearchResults.bookmarkMatches.length === 0 ? (
@@ -2065,7 +1500,7 @@ export default function Dashboard({
                               <button
                                 type="button"
                                 onClick={() => openBookmark(bm.url)}
-                                className="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 hover:bg-accent/20 text-xs text-white/90 transition flex flex-col items-start"
+                                className={globalSearchBookmarkBtnClass}
                               >
                                 <span className="truncate">{bm.title || bm.url}</span>
                                 <span className="text-[11px] text-text-muted truncate max-w-full mt-0.5">
@@ -2086,11 +1521,11 @@ export default function Dashboard({
           {!searchTerm && (
             <>
               {selectedBoardId && categories.length === 0 && !categoriesLoading && !columnsLoading && (
-                <div className="max-w-md mx-auto my-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-8 text-center">
+                <div className={emptyCategoriesCardClass}>
                   <span className="material-symbols-outlined text-[40px] text-accent/80 mb-3 block" aria-hidden>
                     folder_special
                   </span>
-                  <p className="text-sm font-semibold text-white">{tDash.emptyCategoriesTitle}</p>
+                  <p className={emptyCategoriesTitleClass}>{tDash.emptyCategoriesTitle}</p>
                   <p className="text-xs text-text-muted mt-2 mb-4 leading-relaxed">{tDash.emptyCategoriesBody}</p>
                   <button
                     type="button"
@@ -2115,39 +1550,14 @@ export default function Dashboard({
                     const cat = categories.find((c) => c.id === e.active.id);
                     if (cat) setActiveDragCategory(cat as Category & { bookmarks: Bookmark[] });
                     lastCategoryOverRef.current = null;
-                    setDropIndicator(null);
-                    setColumnDropIndicator(null);
                   }}
                   onDragOver={(e: DragOverEvent) => {
                     if (e.over) lastCategoryOverRef.current = e.over;
-                    if (!e.over) {
-                      setDropIndicator((p) => (p === null ? p : null));
-                      setColumnDropIndicator((p) => (p === null ? p : null));
-                      return;
-                    }
-                    const overId = String(e.over.id);
-                    const pointerY = (e.activatorEvent as PointerEvent).clientY + e.delta.y;
-                    if (overId.startsWith(COLUMN_DROP_PREFIX)) {
-                      const columnId = overId.slice(COLUMN_DROP_PREFIX.length);
-                      const insertAtStart = pointerY < e.over.rect.top + e.over.rect.height / 2;
-                      setColumnDropIndicator((p) =>
-                        p?.columnId === columnId && p.insertAtStart === insertAtStart ? p : { columnId, insertAtStart }
-                      );
-                      setDropIndicator((p) => (p === null ? p : null));
-                    } else {
-                      const insertAbove = pointerY < e.over.rect.top + e.over.rect.height / 2;
-                      setDropIndicator((p) =>
-                        p?.overId === overId && p.insertAbove === insertAbove ? p : { overId, insertAbove }
-                      );
-                      setColumnDropIndicator((p) => (p === null ? p : null));
-                    }
                   }}
                   onDragEnd={(e: DragEndEvent) => {
                     const over = e.over ?? lastCategoryOverRef.current;
                     lastCategoryOverRef.current = null;
                     handleCategoryDragEnd({ ...e, over });
-                    setDropIndicator(null);
-                    setColumnDropIndicator(null);
                     setActiveDragCategory(null);
                   }}
                 >
@@ -2157,7 +1567,13 @@ export default function Dashboard({
                           const showLineAtTop = false;
                           const showLineAtBottom = false;
                           return (
-                            <ColumnDroppable key={col.id} columnId={col.id} className="category-grid-item" isEmpty={colCats.length === 0}>
+                            <ColumnDroppable
+                              key={col.id}
+                              columnId={col.id}
+                              className="category-grid-item"
+                              isEmpty={colCats.length === 0}
+                              emptyDropLabel={tDash.dndDropCategoryHere}
+                            >
                               <SortableContext
                                 items={colCats.map((c) => c.id)}
                                 strategy={verticalListSortingStrategy}
@@ -2174,7 +1590,6 @@ export default function Dashboard({
                                         key={cat.id}
                                         category={cat}
                                         activeCategoryId={activeCategoryId}
-                                        dropIndicator={dropIndicator}
                                         fallbackDotColor={FALLBACK_DOT_COLORS[dotIdx]}
                                     searchQuery={searchQuery}
                                     onOpenBookmark={openBookmark}
@@ -2393,516 +1808,3 @@ export default function Dashboard({
   );
 }
 
-function MoveBookmarkModal({
-  open,
-  bookmark,
-  boards,
-  onClose,
-  onMove,
-}: {
-  open: boolean;
-  bookmark: Bookmark | null;
-  boards: Board[];
-  onClose: () => void;
-  onMove: (categoryId: string, boardId: string) => void;
-}) {
-  const settings = useSettings();
-  const t = getT(settings.locale);
-  const [allCategories, setAllCategories] = useState<{ id: string; name: string; board_id: string; sort_order: number }[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const boardIds = boards.map((b) => b.id).join(',');
-
-  useEffect(() => {
-    if (!open || !bookmark || boards.length === 0) {
-      setAllCategories([]);
-      setSearchQuery('');
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      const ids = boards.map((b) => b.id);
-      const { data } = await supabase
-        .from('categories')
-        .select('id, name, board_id, sort_order')
-        .in('board_id', ids)
-        .order('sort_order', { ascending: true });
-      if (!cancelled && data) setAllCategories((data ?? []) as { id: string; name: string; board_id: string; sort_order: number }[]);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [open, bookmark?.id, boardIds]);
-
-  useEffect(() => {
-    if (open) {
-      const id = setTimeout(() => searchInputRef.current?.focus(), 50);
-      return () => clearTimeout(id);
-    }
-  }, [open]);
-
-  if (!open) return null;
-
-  const boardOrder = [...boards].sort((a, b) => a.sort_order - b.sort_order);
-  const categoriesByBoard = boardOrder.map((board) => ({
-    board,
-    categories: allCategories.filter((c) => c.board_id === board.id).sort((a, b) => a.sort_order - b.sort_order),
-  }));
-
-  const q = searchQuery.trim().toLowerCase();
-  const filtered =
-    q === ''
-      ? categoriesByBoard
-      : categoriesByBoard
-          .map(({ board, categories }) => {
-            const boardMatches = board.name.toLowerCase().includes(q);
-            const categoriesFiltered = boardMatches
-              ? categories
-              : categories.filter((c) => c.name.toLowerCase().includes(q));
-            return { board, categories: categoriesFiltered };
-          })
-          .filter((x) => x.categories.length > 0 || x.board.name.toLowerCase().includes(q));
-
-  const hasResults = filtered.length > 0;
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-sidebar border border-white/10 rounded-xl shadow-xl w-full max-w-[420px] max-h-[85vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex-shrink-0 px-3 pt-2.5 pb-2 border-b border-white/10">
-          <h3 className="text-sm font-semibold text-white mb-0.5">
-            {t.moveBookmarkModalTitle}
-          </h3>
-          {bookmark && (
-            <p className="text-[11px] text-text-muted truncate mb-2">
-              {bookmark.title || bookmark.url}
-            </p>
-          )}
-          <div className="relative">
-            <span className="material-icons-round absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[13px] pointer-events-none">
-              search
-            </span>
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.moveBookmarkSearchPlaceholder}
-              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder:text-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
-            />
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <div className="p-2 pb-2.5">
-            {loading ? (
-              <p className="text-[11px] text-text-muted py-4 text-center">{t.loadingAuth}</p>
-            ) : !hasResults ? (
-              <p className="text-[11px] text-text-muted py-4 text-center">{t.moveBookmarkNoResults}</p>
-            ) : (
-              filtered.map(({ board, categories: cats }) => (
-                <div key={board.id} className="mb-1.5 last:mb-0 rounded-lg border border-white/10 bg-white/5 p-1.5">
-                  <p className="text-sm font-bold text-white tracking-wide px-2 py-1.5 mb-1">
-                    {board.name}
-                  </p>
-                  <div className="space-y-0.5">
-                    {cats.length === 0 && (
-                      <p className="px-2 py-1.5 text-[11px] text-text-muted">{t.moveBookmarkNoCategory}</p>
-                    )}
-                    {cats.map((cat) => {
-                      const isCurrent = bookmark?.category_id === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          disabled={isCurrent}
-                          onClick={() => { onMove(cat.id, board.id); onClose(); }}
-                          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs transition ${
-                            isCurrent
-                              ? 'cursor-not-allowed bg-white/5 text-text-muted border border-white/10'
-                              : 'text-text-secondary hover:bg-white/10 hover:text-white border border-transparent'
-                          }`}
-                        >
-                          <span className="font-medium truncate flex-1 min-w-0 text-sm">{cat.name}</span>
-                          {isCurrent && (
-                            <span className="text-[10px] text-text-muted flex-shrink-0 px-1.5 py-0.5 rounded bg-white/5">
-                              {t.moveBookmarkCurrent}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        <div className="flex-shrink-0 p-2 border-t border-white/10">
-          <button type="button" onClick={onClose} className="w-full px-3 py-1.5 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
-            {t.cancel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CategoryCard({
-  category,
-  fallbackDotColor,
-  searchQuery,
-  onOpenBookmark,
-  cardHeight,
-  fillContent,
-  categoryMenuId,
-  onOpenCategoryMenu,
-  onEditCategory,
-  onDuplicateCategory,
-  onDeleteCategory,
-  onAddBookmark,
-  onMoveCategory,
-  onEditBookmark,
-  onDuplicateBookmark,
-  onMoveBookmark,
-  onDeleteBookmark,
-  dragDropCategory,
-  sortableWrapper = false,
-  isDraggingCategory,
-  dragDropBookmark,
-  draggedBookmark,
-  dropBookmarkTarget,
-  onBookmarkDragStart,
-  onBookmarkDragOver,
-  onBookmarkDrop,
-  onBookmarkDragEnd,
-  dragHandleProps,
-}: {
-  category: Category & { bookmarks: Bookmark[] };
-  fallbackDotColor: string;
-  searchQuery: string;
-  onOpenBookmark: (url: string) => void;
-  cardHeight: 'auto' | 'equal';
-  categoryMenuId: string | null;
-  onOpenCategoryMenu: (id: string) => void;
-  onEditCategory: () => void;
-  onDuplicateCategory?: () => void;
-  onDeleteCategory: () => void;
-  onAddBookmark: () => void;
-  onMoveCategory?: () => void;
-  onEditBookmark: (b: Bookmark) => void;
-  onDuplicateBookmark?: (b: Bookmark) => void;
-  onMoveBookmark?: (b: Bookmark) => void;
-  onDeleteBookmark: (b: Bookmark) => void;
-  dragDropCategory?: boolean;
-  sortableWrapper?: boolean;
-  isDraggingCategory?: boolean;
-  dragDropBookmark?: boolean;
-  draggedBookmark?: { id: string; categoryId: string } | null;
-  dropBookmarkTarget?: { id: string; categoryId: string; index: number } | null;
-  onBookmarkDragStart?: (e: React.DragEvent, bookmarkId: string) => void;
-  onBookmarkDragOver?: (e: React.DragEvent, bookmarkId: string, index: number) => void;
-  onBookmarkDrop?: (e: React.DragEvent) => void;
-  onBookmarkDragEnd?: () => void;
-  fillContent: boolean;
-  /** When set, only this header is the drag handle (use header height for grab) */
-  dragHandleProps?: {
-    setActivatorNodeRef: (el: HTMLElement | null) => void;
-    attributes: Record<string, unknown>;
-    listeners: Record<string, unknown> | undefined;
-  };
-}) {
-  const settings = useSettings();
-  const { id, name, color, icon, bookmarks } = category;
-  const dotColor = color || fallbackDotColor;
-  const filtered = searchQuery
-    ? bookmarks.filter(
-        (b) =>
-          b.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          b.url?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : bookmarks;
-  const menuOpen = categoryMenuId === id;
-  const categoryTriggerRef = useRef<HTMLDivElement>(null);
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const [categoryMenuPosition, setCategoryMenuPosition] = useState({ top: 0, left: 0 });
-  useLayoutEffect(() => {
-    if (!menuOpen || !categoryTriggerRef.current) return;
-    const tr = categoryTriggerRef.current.getBoundingClientRect();
-    const estHeight = 170;
-    const spaceBelow = window.innerHeight - tr.bottom;
-    const top = spaceBelow < estHeight ? tr.top - estHeight - 4 : tr.bottom + 4;
-    setCategoryMenuPosition({ top, left: tr.right - 180 });
-  }, [menuOpen]);
-  return (
-    <div
-      data-category-menu
-      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group min-w-0 ring-1 ring-transparent transition-all duration-200 motion-reduce:transform-none hover:-translate-y-px hover:shadow-[0_14px_36px_rgba(0,0,0,0.32)] hover:ring-white/10 focus-within:ring-accent/30 focus-within:shadow-[0_12px_32px_rgba(0,0,0,0.28)] ${
-        cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
-      } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
-        isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
-      } ${menuOpen ? 'z-[999]' : ''}`}
-      style={
-        color && fillContent
-          ? {
-              backgroundColor: color,
-              backgroundImage: 'none',
-            }
-          : undefined
-      }
-    >
-      <div
-        className="px-2.5 py-0 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"
-        style={color ? { backgroundColor: color } : undefined}
-      >
-        <div
-          ref={dragHandleProps?.setActivatorNodeRef}
-          className={`flex items-center gap-1.5 min-w-0 flex-1 ${dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''}`}
-          {...(dragHandleProps?.attributes ?? {})}
-          {...(dragHandleProps?.listeners ?? {})}
-        >
-          {icon ? (
-            <span className="material-symbols-outlined text-[16px] text-white flex-shrink-0">{icon}</span>
-          ) : (
-            <div
-              className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: dotColor, boxShadow: `0 0 6px ${dotColor}80` }}
-            />
-          )}
-          <h3 className="font-bold text-xs text-white tracking-wide truncate">{name}</h3>
-        </div>
-        <div ref={categoryTriggerRef} className="relative">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onOpenCategoryMenu(id); }}
-            className="text-text-muted hover:text-white transition opacity-0 group-hover:opacity-100 p-1 rounded"
-            aria-label="More"
-          >
-            <span className="material-icons-round text-base">more_horiz</span>
-          </button>
-          {menuOpen &&
-            createPortal(
-              <div
-                ref={categoryDropdownRef}
-                className="rounded-lg border border-white/10 bg-sidebar shadow-xl py-1 min-w-[180px] whitespace-nowrap"
-                style={{
-                  position: 'fixed',
-                  top: categoryMenuPosition.top,
-                  left: categoryMenuPosition.left,
-                  zIndex: 9999,
-                }}
-              >
-                <button type="button" onClick={onEditCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                  <span className="material-icons-round text-[16px]">edit</span>
-                  {getT(settings.locale).edit}
-                </button>
-                <button type="button" onClick={onAddBookmark} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                  <span className="material-icons-round text-[16px]">link</span>
-                  {getT(settings.locale).addBookmark}
-                </button>
-                {onMoveCategory && (
-                  <button type="button" onClick={onMoveCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                    <span className="material-icons-round text-[16px]">drive_file_move</span>
-                    {getT(settings.locale).moveCategory}
-                  </button>
-                )}
-                {onDuplicateCategory && (
-                  <button type="button" onClick={onDuplicateCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-                    <span className="material-icons-round text-[16px]">content_copy</span>
-                    {getT(settings.locale).duplicate}
-                  </button>
-                )}
-                <button type="button" onClick={onDeleteCategory} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20">
-                  <span className="material-icons-round text-[16px]">delete</span>
-                  {getT(settings.locale).delete}
-                </button>
-              </div>,
-              document.body
-            )}
-        </div>
-      </div>
-      <ul className={`py-1.5 px-1 ${cardHeight === 'equal' ? 'flex-1 flex flex-col' : ''}`}>
-        {filtered.length === 0 ? (
-          <li className="p-6 flex items-center justify-center text-text-muted/30">
-            <span className="material-symbols-outlined text-3xl">folder_open</span>
-          </li>
-        ) : (
-          filtered.map((b, i) => (
-            <BookmarkRow
-              key={b.id}
-              bookmark={b}
-              index={i}
-              onOpen={onOpenBookmark}
-              onEdit={onEditBookmark}
-              onDuplicate={onDuplicateBookmark}
-              onMove={onMoveBookmark}
-              onDelete={onDeleteBookmark}
-              dragDropEnabled={dragDropBookmark}
-              isDragging={draggedBookmark?.id === b.id && draggedBookmark?.categoryId === id}
-              isDropTarget={dropBookmarkTarget?.categoryId === id && dropBookmarkTarget?.index === i}
-              onDragStart={(e) => onBookmarkDragStart?.(e, b.id)}
-              onDragOver={(e) => onBookmarkDragOver?.(e, b.id, i)}
-              onDrop={onBookmarkDrop}
-              onDragEnd={onBookmarkDragEnd}
-            />
-          ))
-        )}
-      </ul>
-    </div>
-  );
-}
-
-function BookmarkRow({
-  bookmark,
-  index,
-  onOpen,
-  onEdit,
-  onDuplicate,
-  onMove,
-  onDelete,
-  dragDropEnabled,
-  isDragging,
-  isDropTarget,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
-}: {
-  bookmark: Bookmark;
-  index: number;
-  onOpen: (url: string) => void;
-  onEdit: (b: Bookmark) => void;
-  onDuplicate?: (b: Bookmark) => void;
-  onMove?: (b: Bookmark) => void;
-  onDelete: (b: Bookmark) => void;
-  dragDropEnabled?: boolean;
-  isDragging?: boolean;
-  isDropTarget?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
-  onDragEnd?: () => void;
-}) {
-  const settings = useSettings();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const bookmarkDropdownRef = useRef<HTMLDivElement>(null);
-
-  const openMenu = () => {
-    const rect = ref.current?.getBoundingClientRect();
-    if (rect) {
-      setTriggerRect(rect);
-      setDropdownPosition({ top: rect.bottom + 2, left: rect.right - 160 });
-    }
-    setMenuOpen(true);
-  };
-  const closeMenu = () => {
-    setMenuOpen(false);
-    setTriggerRect(null);
-  };
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (ref.current?.contains(target) || bookmarkDropdownRef.current?.contains(target)) return;
-      closeMenu();
-    };
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, [menuOpen]);
-
-  useLayoutEffect(() => {
-    if (!menuOpen || !triggerRect || !bookmarkDropdownRef.current) return;
-    const d = bookmarkDropdownRef.current;
-    const dr = d.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - triggerRect.bottom;
-    const openAbove = spaceBelow < dr.height;
-    const top = openAbove ? triggerRect.top - dr.height - 2 : triggerRect.bottom + 2;
-    const left = triggerRect.right - dr.width;
-    setDropdownPosition({ top, left });
-  }, [menuOpen, triggerRect]);
-
-  const dropdownContent = menuOpen && triggerRect && (
-    <div
-      ref={bookmarkDropdownRef}
-      className="rounded-lg border border-white/10 bg-sidebar shadow-xl py-1 min-w-[160px] whitespace-nowrap"
-      style={{
-        position: 'fixed',
-        top: dropdownPosition.top,
-        left: dropdownPosition.left,
-        zIndex: 9999,
-      }}
-    >
-      <button type="button" onClick={() => { onEdit(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-        <span className="material-icons-round text-[16px]">edit</span>
-        {getT(settings.locale).edit}
-      </button>
-      {onDuplicate && (
-        <button type="button" onClick={() => { onDuplicate(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-          <span className="material-icons-round text-[16px]">content_copy</span>
-          {getT(settings.locale).duplicate}
-        </button>
-      )}
-      {onMove && (
-        <button type="button" onClick={() => { onMove(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-text-secondary hover:bg-white/10 hover:text-white">
-          <span className="material-icons-round text-[16px]">drive_file_move</span>
-          Di chuyển
-        </button>
-      )}
-      <button type="button" onClick={() => { onDelete(bookmark); closeMenu(); }} className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/20">
-        <span className="material-icons-round text-[16px]">delete</span>
-        {getT(settings.locale).delete}
-      </button>
-    </div>
-  );
-
-  return (
-    <li className="relative">
-      {isDropTarget && (
-        <div className="absolute left-2 right-2 top-0 h-1 rounded-full bg-accent shadow-[0_0_8px_rgba(129,140,248,0.6)] z-10 pointer-events-none" aria-hidden />
-      )}
-      <div
-        ref={ref}
-        draggable={dragDropEnabled}
-        onDragStart={dragDropEnabled ? onDragStart : undefined}
-        onDragOver={dragDropEnabled ? onDragOver : undefined}
-        onDrop={dragDropEnabled ? onDrop : undefined}
-        onDragEnd={dragDropEnabled ? onDragEnd : undefined}
-        className={`relative flex items-center group/item transition-all duration-150 ${dragDropEnabled ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-40 scale-[0.98]' : ''}`}
-      >
-        <button
-          type="button"
-          onClick={() => onOpen(bookmark.url)}
-          className={`flex items-center gap-2 px-3 py-2 mx-0.5 rounded-lg transition-all duration-200 w-full text-left flex-1 min-w-0 ${
-            settings.theme === 'light' ? 'hover:bg-transparent' : 'hover:bg-white/10'
-          }`}
-        >
-          <div className={`w-5 h-5 rounded flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-colors ${
-            settings.theme === 'light'
-              ? 'bg-transparent text-text-secondary border border-black/10 group-hover/item:border-accent/50 group-hover/item:text-accent'
-              : 'bg-slate-800 text-text-secondary border border-white/5 group-hover/item:border-accent/30 group-hover/item:text-accent'
-          }`}>
-            {index + 1}
-          </div>
-          <span className="text-xs font-medium text-text-secondary group-hover/item:text-white transition-colors truncate">
-            {bookmark.title || bookmark.url}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); if (menuOpen) closeMenu(); else openMenu(); }}
-          className="p-1 rounded text-text-muted hover:text-white opacity-0 group-hover/item:opacity-100 transition absolute right-1.5"
-          aria-label="Menu"
-        >
-          <span className="material-icons-round text-[14px]">more_vert</span>
-        </button>
-      </div>
-      {dropdownContent && createPortal(dropdownContent, document.body)}
-    </li>
-  );
-}

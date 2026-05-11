@@ -70,6 +70,8 @@ export const t = {
     newTab: 'Tab mới',
     currentTab: 'Tab hiện tại',
     sidebarCloseMenu: 'Đóng menu bên',
+    toggleSidebar: 'Mở hoặc đóng menu bên',
+    dndDropCategoryHere: 'Thả vào đây',
     dragDrop: 'Drag & Drop',
     moveBoard: 'Di chuyển Board',
     moveCategory: 'Di chuyển Category',
@@ -194,6 +196,7 @@ export const t = {
     emptyCategoriesCta: 'Tạo category',
     dashboardStatBoards: 'board',
     dashboardStatBookmarks: 'bookmark',
+    dashboardMemberBadge: 'Thành viên',
     // IT Toolbox
     itToolboxTitle: 'IT Tool box',
     itToolboxClose: 'Đóng',
@@ -301,6 +304,10 @@ export const t = {
     landingTodoFilterDone: 'Đã xong',
     landingTodoSortCreated: 'Theo thời gian',
     landingTodoSortPriority: 'Theo ưu tiên',
+    landingPomodoroToastWorkDone: 'Hết phiên tập trung — nghỉ ngơi chút nhé.',
+    landingPomodoroToastBreakDone: 'Hết giờ nghỉ — tiếp tục tập trung.',
+    landingTodoToastAdded: 'Đã thêm việc.',
+    landingTodoToastDone: 'Đã đánh dấu xong.',
   },
   en: {
     settings: 'Settings',
@@ -371,6 +378,8 @@ export const t = {
     newTab: 'New tab',
     currentTab: 'Current tab',
     sidebarCloseMenu: 'Close sidebar',
+    toggleSidebar: 'Toggle sidebar',
+    dndDropCategoryHere: 'Drop here',
     dragDrop: 'Drag & Drop',
     moveBoard: 'Move Board',
     moveCategory: 'Move Category',
@@ -495,6 +504,7 @@ export const t = {
     emptyCategoriesCta: 'Create category',
     dashboardStatBoards: 'Boards',
     dashboardStatBookmarks: 'Bookmarks',
+    dashboardMemberBadge: 'Member',
     // IT Toolbox
     itToolboxTitle: 'IT Tool box',
     itToolboxClose: 'Close',
@@ -602,6 +612,10 @@ export const t = {
     landingTodoFilterDone: 'Done',
     landingTodoSortCreated: 'By time',
     landingTodoSortPriority: 'By priority',
+    landingPomodoroToastWorkDone: 'Focus session finished — time for a break.',
+    landingPomodoroToastBreakDone: 'Break is over — back to focus.',
+    landingTodoToastAdded: 'Task added.',
+    landingTodoToastDone: 'Marked as done.',
   },
 } as const;
 

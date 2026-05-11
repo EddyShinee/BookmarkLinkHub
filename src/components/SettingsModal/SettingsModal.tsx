@@ -11,16 +11,28 @@ interface SettingsModalProps {
 }
 
 function SettingLabel({ children }: { children: React.ReactNode }) {
+  const s = useSettings();
+  const light = s.theme === 'light';
   return (
-    <label className="block text-[10px] font-semibold uppercase text-text-muted tracking-wider mb-1.5">
+    <label
+      className={`block text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
+        light ? 'text-slate-500' : 'text-text-muted'
+      }`}
+    >
       {children}
     </label>
   );
 }
 
 function SettingCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const s = useSettings();
+  const light = s.theme === 'light';
   return (
-    <div className={`rounded-lg border border-white/10 bg-white/[0.02] p-3 ${className}`}>
+    <div
+      className={`rounded-lg border p-3.5 ${
+        light ? 'border-black/10 bg-white shadow-sm' : 'border-white/10 bg-white/[0.02]'
+      } ${className}`}
+    >
       {children}
     </div>
   );
@@ -34,6 +46,8 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
 
   if (!open) return null;
 
+  const isLight = s.theme === 'light';
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onImportFile) onImportFile(file);
@@ -43,28 +57,75 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
   const toggleBtn = (active: boolean) =>
     active
       ? 'bg-accent text-white shadow-[0_0_12px_rgba(129,140,248,0.35)]'
-      : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white border border-white/5';
+      : isLight
+        ? 'bg-slate-100 text-slate-700 border border-black/10 hover:bg-slate-200 hover:text-slate-900'
+        : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white border border-white/5';
+
+  const stdInput =
+    'w-full px-3 py-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-accent/40 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400 focus:border-accent/50'
+      : 'bg-white/5 border border-white/10 text-white placeholder-text-muted focus:border-accent/40');
+
+  const denseInput =
+    'w-full px-2 py-1.5 rounded-lg text-[11px] outline-none focus:ring-2 focus:ring-accent/35 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400 focus:border-accent/50'
+      : 'bg-black/40 border border-white/20 text-slate-50 placeholder:text-slate-400 focus:ring-white/60');
+
+  const denseInputNum =
+    'w-16 px-2 py-1 rounded-lg text-[11px] outline-none text-center focus:ring-2 focus:ring-accent/35 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900 focus:border-accent/50'
+      : 'bg-black/40 border border-white/25 text-slate-50 focus:ring-white/60');
+
+  const ghostRowBtn =
+    'inline-flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-[11px] transition ' +
+    (isLight
+      ? 'bg-slate-50 border border-black/10 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+      : 'bg-white/5 border border-white/10 text-text-secondary hover:bg-white/10 hover:text-white');
+
+  const footerImportBtn =
+    'w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border transition text-xs ' +
+    (isLight
+      ? 'bg-slate-50 border-black/10 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+      : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10 hover:text-white');
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 backdrop-blur-sm"
+      style={{ backgroundColor: 'var(--backdrop-strong)' }}
       onClick={onClose}
     >
       <div
-        className="bg-sidebar border border-white/10 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto"
+        className={`rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto border ${
+          isLight ? 'border-black/10' : 'border-white/10'
+        }`}
+        style={{ backgroundColor: 'var(--surface-modal)' }}
         role="dialog"
         aria-labelledby="settings-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-white/10 bg-sidebar/95 backdrop-blur-md">
-          <h2 id="settings-title" className="flex items-center gap-2 text-base font-semibold text-white">
+        <div
+          className={`sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b backdrop-blur-md ${
+            isLight ? 'border-black/10 bg-white/95' : 'border-white/10 bg-sidebar/95'
+          }`}
+        >
+          <h2
+            id="settings-title"
+            className={`flex items-center gap-2 text-base font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}
+          >
             <span className="material-symbols-outlined text-accent text-[20px]">settings</span>
             {t.settings}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition"
+            className={`p-1.5 rounded-lg transition ${
+              isLight
+                ? 'text-slate-500 hover:text-slate-900 hover:bg-black/[0.06]'
+                : 'text-text-muted hover:text-white hover:bg-white/10'
+            }`}
             aria-label={t.close}
           >
             <span className="material-symbols-outlined text-lg">close</span>
@@ -187,7 +248,9 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       key={color}
                       type="button"
                       onClick={() => s.setBackgroundColor(color)}
-                      className={`w-6 h-6 rounded-md transition ring-2 ring-offset-1 ring-offset-sidebar hover:scale-105 ${
+                      className={`w-6 h-6 rounded-md transition ring-2 ring-offset-1 ${
+                        isLight ? 'ring-offset-white' : 'ring-offset-sidebar'
+                      } hover:scale-105 ${
                         s.backgroundColor === color ? 'ring-accent' : 'ring-transparent hover:ring-white/30'
                       }`}
                       style={{ backgroundColor: color }}
@@ -203,7 +266,9 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium border ${
                         s.backgroundMode === 'color'
                           ? 'bg-accent/20 border-accent text-accent'
-                          : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                          : isLight
+                            ? 'bg-slate-100 border-black/10 text-slate-600 hover:bg-slate-200'
+                            : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
                       }`}
                     >
                       {t.backgroundModeColor}
@@ -214,7 +279,9 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                       className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium border ${
                         s.backgroundMode === 'image'
                           ? 'bg-accent/20 border-accent text-accent'
-                          : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
+                          : isLight
+                            ? 'bg-slate-100 border-black/10 text-slate-600 hover:bg-slate-200'
+                            : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
                       }`}
                     >
                       {t.backgroundModeImage}
@@ -230,7 +297,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                           value={s.backgroundImageUrl ?? ''}
                           onChange={(e) => s.setBackgroundImageUrl(e.target.value || null)}
                           placeholder={t.backgroundImageUrl}
-                          className="w-full px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+                          className={stdInput}
                         />
                         <input
                           ref={bgImageInputRef}
@@ -253,7 +320,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                         <button
                           type="button"
                           onClick={() => bgImageInputRef.current?.click()}
-                          className="inline-flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg bg-white/5 border border-white/10 text-[11px] text-text-secondary hover:bg-white/10 hover:text-white transition"
+                          className={ghostRowBtn}
                         >
                           <span className="material-symbols-outlined text-[14px]">upload</span>
                           {t.backgroundImageUpload}
@@ -366,7 +433,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                                 value={s.autoBackgroundQuery ?? ''}
                                 onChange={(e) => s.setAutoBackgroundQuery(e.target.value || null)}
                                 placeholder="beach, mountain, workspace..."
-                                className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                className={denseInput}
                               />
                             </div>
 
@@ -384,7 +451,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                                     e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0)
                                   )
                                 }
-                                className="w-16 px-2 py-1 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 outline-none focus:ring-1 focus:ring-white/60 text-center"
+                                className={denseInputNum}
                               />
                             </div>
 
@@ -421,7 +488,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                                       s.setAutoBackgroundMorningQuery(e.target.value || null)
                                     }
                                     placeholder={t.autoBackgroundMorningQuery}
-                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                    className={denseInput}
                                   />
                                   <input
                                     type="text"
@@ -430,7 +497,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                                       s.setAutoBackgroundNoonQuery(e.target.value || null)
                                     }
                                     placeholder={t.autoBackgroundNoonQuery}
-                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                    className={denseInput}
                                   />
                                   <input
                                     type="text"
@@ -439,7 +506,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                                       s.setAutoBackgroundEveningQuery(e.target.value || null)
                                     }
                                     placeholder={t.autoBackgroundEveningQuery}
-                                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/20 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                    className={denseInput}
                                   />
                                 </div>
                               )}
@@ -551,7 +618,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-white/5 border border-white/10 text-text-secondary hover:bg-white/10 hover:text-white transition text-xs"
+                  className={footerImportBtn}
                 >
                   <span className="material-symbols-outlined text-[16px]">upload_file</span>
                   {t.chooseFile}
@@ -564,7 +631,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                 <button
                   type="button"
                   onClick={onExportHtml}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-white/5 border border-white/10 text-text-secondary hover:bg-white/10 hover:text-white transition text-xs"
+                  className={footerImportBtn}
                 >
                   <span className="material-symbols-outlined text-[16px]">download</span>
                   {t.exportToHtml}
@@ -600,7 +667,11 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex justify-end px-5 py-3 border-t border-white/10 bg-sidebar/95 backdrop-blur-md">
+        <div
+          className={`sticky bottom-0 flex justify-end px-5 py-3 border-t backdrop-blur-md ${
+            isLight ? 'border-black/10 bg-white/95' : 'border-white/10 bg-sidebar/95'
+          }`}
+        >
           <button
             type="button"
             onClick={onClose}

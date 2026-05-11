@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabaseClient';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { useUnsplashBackground } from '../hooks/useUnsplashBackground';
+import Toast, { type ToastType } from '../components/Toast';
 
 const DEFAULT_LANDING_BACKGROUND =
   'https://images.unsplash.com/photo-1769878539345-2d8c4769209d?q=80&w=1483&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D';
@@ -46,6 +47,12 @@ export default function Landing() {
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState<'work' | 'break'>('work');
   const [pomodoroCustomMinutes, setPomodoroCustomMinutes] = useState('25');
+  const [toast, setToast] = useState<{ message: string; type: ToastType }>({
+    message: '',
+    type: 'info',
+  });
+  const pomodoroModeRef = useRef(pomodoroMode);
+  pomodoroModeRef.current = pomodoroMode;
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const [mainScrolled, setMainScrolled] = useState(false);
 
@@ -83,11 +90,21 @@ export default function Landing() {
 
   useEffect(() => {
     if (!pomodoroRunning) return;
+    const locale = settings.locale;
     const id = setInterval(() => {
       setPomodoroSeconds((prev) => {
         if (prev <= 1) {
-          const nextMode = pomodoroMode === 'work' ? 'break' : 'work';
+          const mode = pomodoroModeRef.current;
+          const endedWork = mode === 'work';
+          const nextMode = endedWork ? 'break' : 'work';
           const nextSeconds = nextMode === 'work' ? 25 * 60 : 5 * 60;
+          queueMicrotask(() => {
+            const tt = getT(locale);
+            setToast({
+              message: endedWork ? tt.landingPomodoroToastWorkDone : tt.landingPomodoroToastBreakDone,
+              type: 'info',
+            });
+          });
           setPomodoroMode(nextMode);
           setPomodoroTotalSeconds(nextSeconds);
           return nextSeconds;
@@ -96,7 +113,7 @@ export default function Landing() {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [pomodoroRunning, pomodoroMode]);
+  }, [pomodoroRunning, settings.locale]);
 
   // Load todos: from DB if logged in, otherwise from local storage (extension/localStorage)
   useEffect(() => {
@@ -152,17 +169,6 @@ export default function Landing() {
   useEffect(() => {
     chromeStorageAdapter.setItem('landing_todos', JSON.stringify(todos));
   }, [todos]);
-
-  const timeStr = useMemo(
-    () =>
-      now.toLocaleTimeString(settings.locale === 'vi' ? 'vi-VN' : 'en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }),
-    [now, settings.locale]
-  );
 
   const greeting = useMemo(() => {
     const hour = now.getHours();
@@ -224,6 +230,45 @@ export default function Landing() {
   const finalBackgroundImageUrl =
     (unsplashEnabled && unsplashImageUrl) || effectiveBackgroundImageUrl;
 
+  const isLight = settings.theme === 'light';
+
+  const pomodoroShellClass = !showPomodoro
+    ? ''
+    : isLight
+      ? 'rounded-2xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_18px_48px_rgba(15,23,42,0.12)]'
+      : 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.88)]';
+
+  const heroShellClass = isLight
+    ? 'rounded-3xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_20px_56px_rgba(15,23,42,0.12)]'
+    : 'rounded-3xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_28px_90px_rgba(0,0,0,0.92)]';
+
+  const todosShellClass = !showTodos
+    ? ''
+    : isLight
+      ? 'rounded-2xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_16px_44px_rgba(15,23,42,0.1)]'
+      : 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_22px_55px_rgba(0,0,0,0.82)]';
+
+  const panelStrong = isLight ? 'text-slate-800' : 'text-slate-200';
+  const panelMuted = isLight ? 'text-slate-600' : 'text-slate-300';
+
+  const modalDenseInput =
+    'w-full px-2 py-1.5 rounded-lg text-[11px] outline-none focus:ring-2 focus:ring-accent/35 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400'
+      : 'bg-black/40 border border-white/25 text-slate-50 placeholder:text-slate-400 focus:ring-white/60');
+
+  const modalNumInput =
+    'w-16 px-2 py-1 rounded-lg text-[11px] outline-none text-center focus:ring-2 focus:ring-accent/35 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900'
+      : 'bg-black/40 border border-white/25 text-slate-50 focus:ring-white/60');
+
+  const nameModalField =
+    'w-full mb-4 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-accent/40 ' +
+    (isLight
+      ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400'
+      : 'bg-black/60 border border-white/20 text-slate-50 placeholder:text-slate-500 focus:ring-white/70');
+
   return (
     <div className="fixed inset-0 overflow-hidden">
       <div
@@ -245,8 +290,9 @@ export default function Landing() {
       <div
         className="absolute inset-0"
         style={{
-          background:
-            'radial-gradient(circle at top, rgba(15,23,42,0.4), rgba(15,23,42,0.9))',
+          background: isLight
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(248,250,252,0.82) 42%, rgba(226,232,240,0.9) 100%)'
+            : 'radial-gradient(circle at top, rgba(15,23,42,0.4), rgba(15,23,42,0.9))',
           opacity: overlayOpacity,
         }}
       />
@@ -254,12 +300,24 @@ export default function Landing() {
       <div className="relative z-10 flex flex-col min-h-full w-full">
         <div
           className={`flex-shrink-0 flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 gap-2 transition-shadow duration-300 ${
-            mainScrolled ? 'shadow-[0_12px_40px_rgba(0,0,0,0.55)] border-b border-white/10' : ''
+            mainScrolled
+              ? isLight
+                ? 'shadow-[0_8px_28px_rgba(15,23,42,0.1)] border-b border-black/10'
+                : 'shadow-[0_12px_40px_rgba(0,0,0,0.55)] border-b border-white/10'
+              : ''
           }`}
         >
-          <div className="inline-flex items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 sm:px-3 sm:py-1">
+          <div
+            className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 ${
+              isLight ? 'bg-white/80 border border-black/10' : 'bg-black/35'
+            }`}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
-            <span className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.18em] text-slate-100">
+            <span
+              className={`text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.18em] ${
+                isLight ? 'text-slate-700' : 'text-slate-100'
+              }`}
+            >
               LinkHub
             </span>
           </div>
@@ -272,10 +330,14 @@ export default function Landing() {
                 }
               }}
               disabled={!unsplashEnabled}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
+              className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:min-w-[44px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
                 unsplashEnabled
-                  ? 'bg-black/35 border-white/25 text-white hover:bg-black/55'
-                  : 'bg-black/20 border-white/10 text-slate-400 cursor-not-allowed opacity-60'
+                  ? isLight
+                    ? 'bg-white/85 border-black/15 text-slate-800 hover:bg-white'
+                    : 'bg-black/35 border-white/25 text-white hover:bg-black/55'
+                  : isLight
+                    ? 'bg-slate-200/60 border-black/10 text-slate-400 cursor-not-allowed opacity-60'
+                    : 'bg-black/20 border-white/10 text-slate-400 cursor-not-allowed opacity-60'
               }`}
               title={
                 unsplashEnabled
@@ -299,16 +361,28 @@ export default function Landing() {
             <button
               type="button"
               onClick={() => setBgSettingsOpen((o) => !o)}
-              className="inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 sm:px-3 border border-white/25 text-white text-[11px] hover:bg-black/55 hover:text-white"
+              className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:px-3 sm:min-h-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
+                isLight
+                  ? 'bg-white/85 border-black/15 text-slate-800 hover:bg-white'
+                  : 'bg-black/35 border-white/25 text-white hover:bg-black/55 hover:text-white'
+              }`}
               aria-label={t.settings}
             >
-              <span className="material-symbols-outlined text-[16px] text-white">settings</span>
-              <span className="hidden sm:inline text-white">{t.settings}</span>
+              <span
+                className={`material-symbols-outlined text-[16px] ${
+                  isLight ? 'text-slate-800' : 'text-white'
+                }`}
+              >
+                settings
+              </span>
+              <span className={`hidden sm:inline ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                {t.settings}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => navigate('/bookmarks')}
-              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.7)] hover:bg-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] hover:shadow-[0_14px_44px_rgba(15,23,42,0.75)] motion-reduce:transform-none"
+              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-full max-sm:min-h-[44px] sm:min-h-0 bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.25)] hover:bg-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] hover:shadow-[0_14px_44px_rgba(15,23,42,0.35)] motion-reduce:transform-none"
             >
               <span className="material-symbols-outlined text-[14px] sm:text-[16px]">bookmark</span>
               <span>{t.landingPrimaryCta}</span>
@@ -323,25 +397,25 @@ export default function Landing() {
             const el = mainScrollRef.current;
             setMainScrolled(!!el && el.scrollTop > 8);
           }}
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 text-white flex flex-col"
+          className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 flex flex-col ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}
         >
           <div className="w-full max-w-[1600px] mx-auto py-4 sm:py-6 pb-8 text-left flex-1 flex flex-col min-h-0 max-md:flex-none max-md:min-h-0 md:justify-center">
           <div className={`grid gap-6 sm:gap-8 lg:gap-10 items-stretch landing-stagger ${gridColsClass} ${gridRowsClass}`}>
             {/* Pomodoro column */}
             <div
-              className={`landing-stagger-item h-full flex flex-col min-h-0 ${
-                showPomodoro
-                  ? 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.88)]'
-                  : ''
-              }`}
+              className={`landing-stagger-item h-full flex flex-col min-h-0 ${pomodoroShellClass}`}
             >
               {showPomodoro && (
                 <>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-200">
+                <span
+                  className={`text-[12px] font-semibold uppercase tracking-[0.16em] ${panelStrong}`}
+                >
                   {settings.locale === 'vi' ? 'Pomodoro' : 'Pomodoro'}
                 </span>
-                <span className="text-[11px] text-slate-300">
+                <span className={`text-[11px] ${panelMuted}`}>
                   {pomodoroMode === 'work'
                     ? settings.locale === 'vi'
                       ? 'Tập trung'
@@ -351,7 +425,11 @@ export default function Landing() {
                     : 'Break'}
                 </span>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden mb-4">
+              <div
+                className={`w-full h-1.5 rounded-full overflow-hidden mb-4 ${
+                  isLight ? 'bg-black/10' : 'bg-white/10'
+                }`}
+              >
                 <div
                   className="h-full rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)] transition-all duration-300"
                   style={{ width: `${pomodoroProgress * 100}%` }}
@@ -377,13 +455,20 @@ export default function Landing() {
                     );
                     const remainingSeconds = Math.max(0, pomodoroSeconds % 60);
                     const pad = (n: number) => n.toString().padStart(2, '0');
+                    const trackStroke = isLight
+                      ? 'rgba(100,116,139,0.35)'
+                      : 'rgba(148,163,184,0.35)';
+                    const progressStroke = isLight
+                      ? 'rgba(5,150,105,0.95)'
+                      : 'rgba(248,250,252,0.9)';
+                    const timeFill = isLight ? 'rgba(15,23,42,0.92)' : 'rgba(248,250,252,0.9)';
                     return (
                       <>
                         <circle
                           cx="40"
                           cy="40"
                           r={radius}
-                          stroke="rgba(148,163,184,0.35)"
+                          stroke={trackStroke}
                           strokeWidth="5"
                           fill="transparent"
                         />
@@ -391,7 +476,7 @@ export default function Landing() {
                           cx="40"
                           cy="40"
                           r={radius}
-                          stroke="rgba(248,250,252,0.9)"
+                          stroke={progressStroke}
                           strokeWidth="5"
                           fill="transparent"
                           strokeDasharray={`${circumference} ${circumference}`}
@@ -404,7 +489,7 @@ export default function Landing() {
                           y="40"
                           textAnchor="middle"
                           dominantBaseline="middle"
-                          fill="rgba(248,250,252,0.9)"
+                          fill={timeFill}
                           fontSize="14"
                           fontWeight="600"
                         >
@@ -438,7 +523,11 @@ export default function Landing() {
                       setPomodoroRunning(false);
                       setPomodoroSeconds(pomodoroMode === 'work' ? 25 * 60 : 5 * 60);
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 text-slate-100 text-[11px] hover:bg-white/20 border border-white/25 min-w-[80px]"
+                    className={`px-3 py-1.5 rounded-lg text-[11px] border min-w-[80px] ${
+                      isLight
+                        ? 'bg-slate-100 text-slate-800 border-black/10 hover:bg-slate-200'
+                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/25'
+                    }`}
                   >
                     {settings.locale === 'vi' ? 'Đặt lại' : 'Reset'}
                   </button>
@@ -454,8 +543,12 @@ export default function Landing() {
                     }}
                     className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
                       pomodoroMode === 'work'
-                        ? 'bg-white/15 border-white/40'
-                        : 'bg-black/20 border-white/20'
+                        ? isLight
+                          ? 'bg-emerald-100 border-emerald-400/80 text-slate-900'
+                          : 'bg-white/15 border-white/40'
+                        : isLight
+                          ? 'bg-white/60 border-black/15 text-slate-700'
+                          : 'bg-black/20 border-white/20'
                     }`}
                   >
                     {settings.locale === 'vi' ? '25 phút tập trung' : '25 min focus'}
@@ -469,22 +562,30 @@ export default function Landing() {
                     }}
                     className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
                       pomodoroMode === 'break'
-                        ? 'bg-white/15 border-white/40'
-                        : 'bg-black/20 border-white/20'
+                        ? isLight
+                          ? 'bg-emerald-100 border-emerald-400/80 text-slate-900'
+                          : 'bg-white/15 border-white/40'
+                        : isLight
+                          ? 'bg-white/60 border-black/15 text-slate-700'
+                          : 'bg-black/20 border-white/20'
                     }`}
                   >
                     {settings.locale === 'vi' ? '5 phút nghỉ' : '5 min break'}
                   </button>
                 </div>
 
-                    <div className="flex items-center gap-2 text-[10px] text-slate-300 flex-wrap">
+                    <div className={`flex items-center gap-2 text-[10px] flex-wrap ${panelMuted}`}>
                   <input
                     type="number"
                     min={1}
                     max={180}
                     value={pomodoroCustomMinutes}
                     onChange={(e) => setPomodoroCustomMinutes(e.target.value)}
-                    className="w-20 px-2 py-1 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 outline-none focus:ring-1 focus:ring-white/60 text-center"
+                    className={`w-20 px-2 py-1 rounded-lg text-[11px] outline-none text-center focus:ring-2 focus:ring-accent/40 ${
+                      isLight
+                        ? 'bg-white border border-black/15 text-slate-900'
+                        : 'bg-black/40 border border-white/25 text-slate-50 focus:ring-white/60'
+                    }`}
                   />
                   <button
                     type="button"
@@ -496,7 +597,11 @@ export default function Landing() {
                       setPomodoroSeconds(seconds);
                       setPomodoroTotalSeconds(seconds);
                     }}
-                    className="flex-1 px-3 py-1 rounded-lg bg-white/10 text-slate-100 text-[11px] hover:bg-white/20 border border-white/25 text-center"
+                    className={`flex-1 px-3 py-1 rounded-lg text-[11px] border text-center ${
+                      isLight
+                        ? 'bg-slate-100 text-slate-800 border-black/10 hover:bg-slate-200'
+                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/25'
+                    }`}
                   >
                     {settings.locale === 'vi' ? 'Áp dụng phút tùy chỉnh' : 'Apply custom minutes'}
                   </button>
@@ -506,8 +611,16 @@ export default function Landing() {
               )}
             </div>
 
-            <div className="landing-stagger-item rounded-3xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_28px_90px_rgba(0,0,0,0.92)] h-full flex flex-col justify-center">
-              <div className="flex items-baseline justify-center gap-2 text-[56px] sm:text-[72px] md:text-[88px] font-semibold leading-none tracking-tight drop-shadow-[0_16px_52px_rgba(0,0,0,0.95)]">
+            <div
+              className={`landing-stagger-item h-full flex flex-col justify-center ${heroShellClass}`}
+            >
+              <div
+                className={`flex items-baseline justify-center gap-2 text-[56px] sm:text-[72px] md:text-[88px] font-semibold leading-none tracking-tight ${
+                  isLight
+                    ? 'text-slate-900 [text-shadow:0_1px_0_rgba(255,255,255,0.6)]'
+                    : 'drop-shadow-[0_16px_52px_rgba(0,0,0,0.95)] text-white'
+                }`}
+              >
                 <span>
                   {(() => {
                     const hours = now.getHours();
@@ -520,7 +633,11 @@ export default function Landing() {
                   })()}
                 </span>
                 {settings.timeFormat === '12' && (
-                  <span className="text-[24px] sm:text-[32px] md:text-[40px] font-semibold">
+                  <span
+                    className={`text-[24px] sm:text-[32px] md:text-[40px] font-semibold ${
+                      isLight ? 'text-slate-800' : ''
+                    }`}
+                  >
                     {now.getHours() < 12
                       ? settings.locale === 'vi'
                         ? 'SA'
@@ -531,44 +648,64 @@ export default function Landing() {
                   </span>
                 )}
               </div>
-              <p className="mt-4 text-lg sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.88)] text-center text-white">
+              <p
+                className={`mt-4 text-lg sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-center ${
+                  isLight
+                    ? 'text-slate-800'
+                    : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.88)] text-white'
+                }`}
+              >
                 {greeting}
                 {displayName ? (
-                  <span className="font-semibold text-white">{`, ${displayName}`}</span>
+                  <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {`, ${displayName}`}
+                  </span>
                 ) : null}
-                <span className="text-white/90">.</span>
+                <span className={isLight ? 'text-slate-700' : 'text-white/90'}>.</span>
               </p>
-              <p className="mt-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-300/90 drop-shadow-[0_6px_20px_rgba(0,0,0,0.85)] text-center">
+              <p
+                className={`mt-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-center ${
+                  isLight
+                    ? 'text-slate-600'
+                    : 'text-slate-300/90 drop-shadow-[0_6px_20px_rgba(0,0,0,0.85)]'
+                }`}
+              >
                 {dateStr}
               </p>
             </div>
 
             <div
-              className={`landing-stagger-item h-full min-h-0 flex flex-col ${
-                showTodos
-                  ? 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_22px_55px_rgba(0,0,0,0.82)]'
-                  : ''
-              }`}
+              className={`landing-stagger-item h-full min-h-0 flex flex-col ${todosShellClass}`}
             >
             {showTodos && (
             <>
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div>
-                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-200">
+                <span
+                  className={`text-[12px] font-semibold uppercase tracking-[0.16em] ${panelStrong}`}
+                >
                   {t.landingTodoTitle}
                 </span>
-                <span className="ml-2 text-[12px] text-slate-300">
+                <span className={`ml-2 text-[12px] ${panelMuted}`}>
                   {todos.filter((t) => !t.done).length}/{todos.length}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] bg-white/5 rounded-full px-1.5 py-0.5 border border-white/15 flex-shrink-0">
+              <div
+                className={`flex items-center gap-1 text-[11px] rounded-full px-1.5 py-0.5 border flex-shrink-0 ${
+                  isLight ? 'bg-black/[0.04] border-black/10' : 'bg-white/5 border-white/15'
+                }`}
+              >
                 {(['all', 'active', 'done'] as const).map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setFilter(key)}
                     className={`px-2 py-0.5 rounded-full ${
-                      filter === key ? 'bg-white/90 text-slate-900' : 'text-slate-200'
+                      filter === key
+                        ? 'bg-white/90 text-slate-900'
+                        : isLight
+                          ? 'text-slate-700'
+                          : 'text-slate-200'
                     }`}
                   >
                     {key === 'all'
@@ -583,7 +720,7 @@ export default function Landing() {
 
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <div className="flex items-center gap-1 text-[11px] flex-shrink-0">
-                <span className="text-slate-200">{t.landingTodoPriority}</span>
+                <span className={panelStrong}>{t.landingTodoPriority}</span>
                 {(['low', 'medium', 'high'] as TodoPriority[]).map((p) => {
                   const color =
                     p === 'low' ? 'bg-emerald-400' : p === 'medium' ? 'bg-amber-400' : 'bg-rose-400';
@@ -592,9 +729,9 @@ export default function Landing() {
                       key={p}
                       type="button"
                       onClick={() => setNewPriority(p)}
-                      className={`w-5 h-5 rounded-full border border-white/40 flex items-center justify-center ${
-                        newPriority === p ? '' : 'opacity-50'
-                      }`}
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        isLight ? 'border-black/25' : 'border-white/40'
+                      } ${newPriority === p ? '' : 'opacity-50'}`}
                     >
                       <span className={`w-3 h-3 rounded-full ${color}`} />
                     </button>
@@ -608,7 +745,9 @@ export default function Landing() {
                   className={`px-2 py-0.5 rounded-full border ${
                     sortBy === 'created'
                       ? 'bg-white/90 text-slate-900 border-transparent'
-                      : 'bg-white/5 text-slate-200 border-white/20'
+                      : isLight
+                        ? 'bg-black/[0.04] text-slate-700 border-black/15'
+                        : 'bg-white/5 text-slate-200 border-white/20'
                   }`}
                 >
                   {t.landingTodoSortCreated}
@@ -619,7 +758,9 @@ export default function Landing() {
                   className={`px-2 py-0.5 rounded-full border ${
                     sortBy === 'priority'
                       ? 'bg-white/90 text-slate-900 border-transparent'
-                      : 'bg-white/5 text-slate-200 border-white/20'
+                      : isLight
+                        ? 'bg-black/[0.04] text-slate-700 border-black/15'
+                        : 'bg-white/5 text-slate-200 border-white/20'
                   }`}
                 >
                   {t.landingTodoSortPriority}
@@ -641,6 +782,7 @@ export default function Landing() {
                   createdAt: Date.now(),
                 };
                 setTodos((prev) => [...prev, todo]);
+                setToast({ message: t.landingTodoToastAdded, type: 'success' });
                 if (user?.id) {
                   supabase
                     .from('landing_todos')
@@ -685,7 +827,11 @@ export default function Landing() {
                 value={todoInput}
                 onChange={(e) => setTodoInput(e.target.value)}
                 placeholder={t.landingTodoPlaceholder}
-                className="flex-1 bg-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-[12px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/70"
+                className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] outline-none focus:ring-2 focus:ring-accent/40 ${
+                  isLight
+                    ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400'
+                    : 'bg-white/5 border border-white/20 text-slate-50 placeholder:text-slate-400 focus:ring-white/70'
+                }`}
               />
               <button
                 type="submit"
@@ -697,7 +843,7 @@ export default function Landing() {
             </form>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1.5">
               {todos.length === 0 ? (
-                <p className="text-[12px] text-slate-300">{t.landingTodoEmpty}</p>
+                <p className={`text-[12px] ${panelMuted}`}>{t.landingTodoEmpty}</p>
               ) : (
                 todos
                   .filter((item) => {
@@ -724,11 +870,16 @@ export default function Landing() {
                     return (
                       <div
                         key={item.id}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12px] text-left transition bg-white/0 hover:bg-white/5 border-l-2 ${colorClass}`}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12px] text-left transition border-l-2 ${colorClass} ${
+                          isLight
+                            ? 'bg-transparent hover:bg-black/[0.04]'
+                            : 'bg-white/0 hover:bg-white/5'
+                        }`}
                       >
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            const markingDone = !item.done;
                             setTodos((prev) => {
                               const next = prev.map((t) =>
                                 t.id === item.id ? { ...t, done: !t.done } : t
@@ -743,14 +894,17 @@ export default function Landing() {
                                   .then(() => {});
                               }
                               return next;
-                            })
-                          }
+                            });
+                            if (markingDone) {
+                              setToast({ message: t.landingTodoToastDone, type: 'success' });
+                            }
+                          }}
                           className="flex items-center gap-2 flex-1 text-left"
                         >
                           <span
-                            className={`w-4 h-4 rounded-full border border-white/60 flex items-center justify-center ${
-                              item.done ? 'bg-white' : 'bg-transparent'
-                            }`}
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                              isLight ? 'border-black/35' : 'border-white/60'
+                            } ${item.done ? 'bg-white' : 'bg-transparent'}`}
                           >
                             {item.done && (
                               <span className="material-symbols-outlined text-[12px] text-slate-900">
@@ -760,7 +914,13 @@ export default function Landing() {
                           </span>
                           <span
                             className={`truncate ${
-                              item.done ? 'text-slate-300 line-through' : 'text-slate-50'
+                              item.done
+                                ? isLight
+                                  ? 'text-slate-500 line-through'
+                                  : 'text-slate-300 line-through'
+                                : isLight
+                                  ? 'text-slate-900'
+                                  : 'text-slate-50'
                             }`}
                           >
                             {item.text}
@@ -781,7 +941,11 @@ export default function Landing() {
                               return prev.filter((t) => t.id !== item.id);
                             })
                           }
-                          className="ml-2 text-[12px] text-slate-400 hover:text-white"
+                          className={`ml-2 text-[12px] ${
+                            isLight
+                              ? 'text-slate-500 hover:text-slate-900'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
                         >
                           ×
                         </button>
@@ -799,35 +963,55 @@ export default function Landing() {
 
         {bgSettingsOpen && (
           <div
-            className="fixed inset-0 flex items-center justify-center bg-black/60 px-4"
+            className="fixed inset-0 z-40 flex items-center justify-center px-4 backdrop-blur-sm"
+            style={{ backgroundColor: 'var(--backdrop-strong)' }}
             onClick={() => setBgSettingsOpen(false)}
           >
             <div
-              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-left text-[11px]"
+              className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border p-4 sm:p-5 text-left text-[11px] ${
+                isLight
+                  ? 'border-black/10 shadow-[0_20px_56px_rgba(15,23,42,0.14)]'
+                  : 'border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)]'
+              }`}
+              style={{ backgroundColor: 'var(--surface-modal)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <span className="font-semibold text-slate-50 text-sm tracking-wide">
+                <span
+                  className={`font-semibold text-sm tracking-wide ${
+                    isLight ? 'text-slate-900' : 'text-slate-50'
+                  }`}
+                >
                   {t.landingBgSource}
                 </span>
                 <button
                   type="button"
                   onClick={() => setBgSettingsOpen(false)}
-                  className="text-slate-300 hover:text-white text-sm"
+                  className={`text-sm ${
+                    isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-300 hover:text-white'
+                  }`}
                 >
                   ×
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-[11px] text-slate-50">
+              <div
+                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-[11px] ${
+                  isLight ? 'text-slate-800' : 'text-slate-50'
+                }`}
+              >
                 <div className="space-y-2">
-                  <p className="font-semibold uppercase tracking-[0.14em] text-slate-300 text-[10px]">
+                  <p className={`font-semibold uppercase tracking-[0.14em] text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                     {t.landingBgUpload}
                   </p>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 text-left"
+                    className={`w-full py-1.5 px-2 rounded-lg text-left transition ${
+                      isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                        : 'bg-white/5 hover:bg-white/10'
+                    }`}
                   >
                     {t.landingBgUpload}
                   </button>
@@ -854,7 +1038,7 @@ export default function Landing() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="font-semibold uppercase tracking-[0.14em] text-slate-300 text-[10px]">
+                  <p className={`font-semibold uppercase tracking-[0.14em] text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                     {t.landingBgUrl}
                   </p>
                   <input
@@ -862,7 +1046,7 @@ export default function Landing() {
                     value={customUrl}
                     onChange={(e) => setCustomUrl(e.target.value)}
                     placeholder="https://example.com/background.jpg"
-                    className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                    className={modalDenseInput}
                   />
                   <button
                     type="button"
@@ -878,7 +1062,7 @@ export default function Landing() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="font-semibold uppercase tracking-[0.14em] text-slate-300 text-[10px]">
+                  <p className={`font-semibold uppercase tracking-[0.14em] text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                     {t.timeFormat}
                   </p>
                   <div className="flex gap-1.5">
@@ -888,7 +1072,9 @@ export default function Landing() {
                       className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium ${
                         settings.timeFormat === '24'
                           ? 'bg-white/90 text-slate-900'
-                          : 'bg-white/5 text-slate-200'
+                          : isLight
+                            ? 'bg-black/[0.05] text-slate-700 border border-black/10'
+                            : 'bg-white/5 text-slate-200'
                       }`}
                     >
                       {t.timeFormat24}
@@ -899,7 +1085,9 @@ export default function Landing() {
                       className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium ${
                         settings.timeFormat === '12'
                           ? 'bg-white/90 text-slate-900'
-                          : 'bg-white/5 text-slate-200'
+                          : isLight
+                            ? 'bg-black/[0.05] text-slate-700 border border-black/10'
+                            : 'bg-white/5 text-slate-200'
                       }`}
                     >
                       {t.timeFormat12}
@@ -908,13 +1096,15 @@ export default function Landing() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="pt-1 border-t border-white/10 space-y-2">
-                    <p className="font-semibold uppercase tracking-[0.14em] text-slate-300 text-[10px]">
+                  <div
+                    className={`pt-1 border-t space-y-2 ${isLight ? 'border-black/10' : 'border-white/10'}`}
+                  >
+                    <p className={`font-semibold uppercase tracking-[0.14em] text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       {settings.locale === 'vi' ? 'Hiển thị khu vực' : "Sections visibility"}
                     </p>
                     <div className="space-y-1.5">
                       <label className="flex items-center justify-between gap-2">
-                        <span className="text-slate-200">
+                        <span className={isLight ? 'text-slate-700' : 'text-slate-200'}>
                           {settings.locale === 'vi' ? 'Pomodoro' : 'Pomodoro'}
                         </span>
                         <button
@@ -925,7 +1115,9 @@ export default function Landing() {
                           className={`relative inline-flex h-4 w-7 items-center rounded-full border transition ${
                             showPomodoro
                               ? 'bg-emerald-400/90 border-emerald-300'
-                              : 'bg-black/40 border-white/30'
+                              : isLight
+                                ? 'bg-slate-200 border-black/20'
+                                : 'bg-black/40 border-white/30'
                           }`}
                         >
                           <span
@@ -936,7 +1128,7 @@ export default function Landing() {
                         </button>
                       </label>
                       <label className="flex items-center justify-between gap-2">
-                        <span className="text-slate-200">
+                        <span className={isLight ? 'text-slate-700' : 'text-slate-200'}>
                           {settings.locale === 'vi' ? 'Todo hôm nay' : "Today's Focus"}
                         </span>
                         <button
@@ -945,7 +1137,9 @@ export default function Landing() {
                           className={`relative inline-flex h-4 w-7 items-center rounded-full border transition ${
                             showTodos
                               ? 'bg-emerald-400/90 border-emerald-300'
-                              : 'bg-black/40 border-white/30'
+                              : isLight
+                                ? 'bg-slate-200 border-black/20'
+                                : 'bg-black/40 border-white/30'
                           }`}
                         >
                           <span
@@ -958,14 +1152,16 @@ export default function Landing() {
                     </div>
                   </div>
 
-                  <div className="pt-1 border-t border-white/10 space-y-2">
-                    <p className="font-semibold uppercase tracking-[0.14em] text-slate-300 text-[10px]">
+                  <div
+                    className={`pt-1 border-t space-y-2 ${isLight ? 'border-black/10' : 'border-white/10'}`}
+                  >
+                    <p className={`font-semibold uppercase tracking-[0.14em] text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
                       {t.autoBackgroundSectionTitle}
                     </p>
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-slate-200">
+                        <span className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                           {t.autoBackgroundSource}
                         </span>
                         <div className="flex gap-1">
@@ -975,7 +1171,9 @@ export default function Landing() {
                             className={`px-2 py-0.5 rounded-full text-[11px] border ${
                               (settings.autoBackgroundSource ?? 'none') === 'none'
                                 ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                                : isLight
+                                  ? 'bg-black/[0.04] border-black/10 text-slate-700 hover:bg-black/[0.08]'
+                                  : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
                             }`}
                           >
                             {t.autoBackgroundSourceNone}
@@ -986,7 +1184,9 @@ export default function Landing() {
                             className={`px-2 py-0.5 rounded-full text-[11px] border ${
                               settings.autoBackgroundSource === 'unsplash'
                                 ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                                : isLight
+                                  ? 'bg-black/[0.04] border-black/10 text-slate-700 hover:bg-black/[0.08]'
+                                  : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
                             }`}
                           >
                             {t.autoBackgroundSourceUnsplash}
@@ -997,7 +1197,7 @@ export default function Landing() {
                       {settings.autoBackgroundSource === 'unsplash' && (
                         <div className="space-y-1.5">
                           <div className="space-y-1">
-                            <span className="text-[11px] text-slate-200">
+                            <span className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                               {t.autoBackgroundQueryLabel}
                             </span>
                             <input
@@ -1007,12 +1207,14 @@ export default function Landing() {
                                 settings.setAutoBackgroundQuery(e.target.value || null)
                               }
                               placeholder="beach, forest, workspace..."
-                              className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                              className={modalDenseInput}
                             />
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-200">
+                            <span
+                              className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-200'}`}
+                            >
                               {t.autoBackgroundIntervalHoursLabel}
                             </span>
                             <input
@@ -1027,13 +1229,13 @@ export default function Landing() {
                                     : Math.max(0, Number(e.target.value) || 0)
                                 )
                               }
-                              className="w-16 px-2 py-1 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 outline-none focus:ring-1 focus:ring-white/60 text-center"
+                              className={modalNumInput}
                             />
                           </div>
 
                           <div className="space-y-1">
                             <label className="flex items-center justify-between gap-2">
-                              <span className="text-[11px] text-slate-200">
+                              <span className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-200'}`}>
                                 {t.autoBackgroundTimeOfDayMode}
                               </span>
                               <button
@@ -1050,7 +1252,9 @@ export default function Landing() {
                                   (settings.autoBackgroundTimeOfDayMode ?? 'off') ===
                                   'by_time_of_day'
                                     ? 'bg-accent/20 text-accent border border-accent/40'
-                                    : 'bg-white/10 text-slate-300 hover:bg-white/15 border border-white/10'
+                                    : isLight
+                                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-black/10'
+                                      : 'bg-white/10 text-slate-300 hover:bg-white/15 border border-white/10'
                                 }`}
                               >
                                 {(settings.autoBackgroundTimeOfDayMode ?? 'off') ===
@@ -1072,7 +1276,7 @@ export default function Landing() {
                                     )
                                   }
                                   placeholder={t.autoBackgroundMorningQuery}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  className={modalDenseInput}
                                 />
                                 <input
                                   type="text"
@@ -1083,7 +1287,7 @@ export default function Landing() {
                                     )
                                   }
                                   placeholder={t.autoBackgroundNoonQuery}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  className={modalDenseInput}
                                 />
                                 <input
                                   type="text"
@@ -1094,7 +1298,7 @@ export default function Landing() {
                                     )
                                   }
                                   placeholder={t.autoBackgroundEveningQuery}
-                                  className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/25 text-[11px] text-slate-50 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-white/60"
+                                  className={modalDenseInput}
                                 />
                               </div>
                             )}
@@ -1111,17 +1315,25 @@ export default function Landing() {
 
         {nameModalOpen && (
           <div
-            className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 px-4"
+            className="fixed inset-0 z-40 flex items-center justify-center px-4 backdrop-blur-sm"
+            style={{ backgroundColor: 'var(--backdrop-strong)' }}
             onClick={() => setNameModalOpen(false)}
           >
             <div
-              className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-slate-950/95 border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-left text-[12px]"
+              className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border p-4 sm:p-5 text-left text-[12px] ${
+                isLight
+                  ? 'border-black/10 shadow-[0_20px_56px_rgba(15,23,42,0.14)]'
+                  : 'border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)]'
+              }`}
+              style={{ backgroundColor: 'var(--surface-modal)' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-sm font-semibold text-slate-50 mb-2">
+              <h2
+                className={`text-sm font-semibold mb-2 ${isLight ? 'text-slate-900' : 'text-slate-50'}`}
+              >
                 {settings.locale === 'vi' ? 'Chào bạn, cho mình biết tên nhé?' : 'Hi, what should we call you?'}
               </h2>
-              <p className="text-slate-300 text-xs mb-3">
+              <p className={`text-xs mb-3 ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                 {settings.locale === 'vi'
                   ? 'Tên này sẽ được dùng để hiển thị trong lời chào: “Good evening, Tên của bạn”.'
                   : 'This name will be used in the greeting: “Good evening, Your name”.'}
@@ -1131,13 +1343,17 @@ export default function Landing() {
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 placeholder={settings.locale === 'vi' ? 'Nhập tên của bạn' : 'Enter your name'}
-                className="w-full mb-4 px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-slate-50 placeholder:text-slate-500 outline-none focus:ring-1 focus:ring-white/70"
+                className={nameModalField}
               />
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setNameModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-200 text-xs hover:bg-white/10 border border-white/15"
+                  className={`px-3 py-1.5 rounded-lg text-xs border ${
+                    isLight
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-black/10'
+                      : 'bg-white/5 text-slate-200 hover:bg-white/10 border-white/15'
+                  }`}
                 >
                   {settings.locale === 'vi' ? 'Để sau' : 'Later'}
                 </button>
@@ -1164,6 +1380,12 @@ export default function Landing() {
             </div>
           </div>
         )}
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          open={!!toast.message}
+          onClose={() => setToast((p) => ({ ...p, message: '' }))}
+        />
       </div>
     </div>
   );
