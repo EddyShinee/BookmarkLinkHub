@@ -1,6 +1,5 @@
 import React, { type RefObject } from 'react';
 import type { User } from '@supabase/supabase-js';
-import type { Board } from '../../hooks/useBookmarks';
 import { useSettings } from '../../contexts/SettingsContext';
 import { getT } from '../../lib/i18n';
 import { chromePanelBackground } from './headerSidebarSurface';
@@ -11,8 +10,6 @@ export interface DashboardHeaderProps {
   searchInputRef: RefObject<HTMLInputElement | null>;
   searchQuery: string;
   onSearchQueryChange: (q: string) => void;
-  boards: Board[];
-  dashboardBookmarkTotal: number;
   user: User | undefined;
   userMenuRef: RefObject<HTMLDivElement | null>;
   userTriggerRef: RefObject<HTMLButtonElement | null>;
@@ -30,8 +27,6 @@ export function DashboardHeader({
   searchInputRef,
   searchQuery,
   onSearchQueryChange,
-  boards,
-  dashboardBookmarkTotal,
   user,
   userMenuRef,
   userTriggerRef,
@@ -54,10 +49,6 @@ export function DashboardHeader({
   const menuBtnClass = isLight
     ? 'text-slate-600 hover:text-slate-900 hover:bg-black/5'
     : 'text-text-muted hover:text-white hover:bg-white/10';
-
-  const statPillClass = isLight
-    ? 'border-black/10 bg-white/80 text-slate-800'
-    : 'border-white/10 bg-white/5 text-white/90';
 
   const userChipClass = isLight
     ? 'bg-white/80 hover:bg-white border-black/10 hover:border-black/15'
@@ -99,19 +90,7 @@ export function DashboardHeader({
           />
         </div>
       </div>
-      <div className="hidden lg:flex items-center gap-1.5 mx-1 text-[10px] tabular-nums flex-shrink-0">
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${statPillClass}`}>
-          <span className="material-symbols-outlined text-[14px] text-accent/90">view_kanban</span>
-          <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{boards.length}</span>
-          <span className="text-text-muted font-normal">{t.dashboardStatBoards}</span>
-        </span>
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${statPillClass}`}>
-          <span className="material-symbols-outlined text-[14px] text-accent/90">bookmark</span>
-          <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{dashboardBookmarkTotal}</span>
-          <span className="text-text-muted font-normal">{t.dashboardStatBookmarks}</span>
-        </span>
-      </div>
-      <div className="flex items-center gap-2 ml-2 md:ml-4">
+      <div className="flex items-center gap-2 ml-2 md:ml-4 flex-shrink-0">
         <button
           type="button"
           onClick={() => (window.location.hash = '#/landing')}

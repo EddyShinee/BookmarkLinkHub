@@ -48,11 +48,12 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    // Prefer smaller URLs first: `full` is multi‑MB and feels very slow as a CSS background.
     const imageUrl =
-      first.urls.full ||
       first.urls.regular ||
-      first.urls.raw ||
       first.urls.small ||
+      first.urls.full ||
+      first.urls.raw ||
       first.urls.thumb;
 
     const thumbUrl = first.urls.thumb || first.urls.small || first.urls.regular || imageUrl;

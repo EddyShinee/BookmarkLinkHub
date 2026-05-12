@@ -57,6 +57,7 @@ import { SortableCategoryCard } from './dashboard/SortableCategoryCard';
 import { MoveBookmarkModal } from './dashboard/MoveBookmarkModal';
 import { DashboardSidebar } from './dashboard/DashboardSidebar';
 import { DashboardHeader } from './dashboard/DashboardHeader';
+import { DashboardFooter } from './dashboard/DashboardFooter';
 import { DashboardBoardToolbar } from './dashboard/DashboardBoardToolbar';
 
 /** Prefer pointer position; fallback to closest center when pointer is in gap between columns */
@@ -1272,6 +1273,18 @@ export default function Dashboard({
 
   const tDash = getT(settings.locale);
   const dashboardBookmarkTotal = useMemo(() => allBookmarks.length, [allBookmarks]);
+  const dashboardCategoryTotal = useMemo(() => allCategories.length, [allCategories]);
+  const dashboardCategoryCountOnBoard = useMemo(
+    () => (selectedBoardId ? categories.length : 0),
+    [selectedBoardId, categories]
+  );
+  const dashboardLinkCountOnBoard = useMemo(
+    () =>
+      selectedBoardId
+        ? categories.reduce((sum, c) => sum + c.bookmarks.length, 0)
+        : 0,
+    [selectedBoardId, categories]
+  );
 
   const showCategoryGridSkeleton =
     !!selectedBoardId &&
@@ -1382,8 +1395,6 @@ export default function Dashboard({
           searchInputRef={searchInputRef}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
-          boards={boards}
-          dashboardBookmarkTotal={dashboardBookmarkTotal}
           user={user}
           userMenuRef={userMenuRef}
           userTriggerRef={userTriggerRef}
@@ -1696,6 +1707,14 @@ export default function Dashboard({
             </>
           )}
         </div>
+        <DashboardFooter
+          boardCount={boards.length}
+          categoryTotal={dashboardCategoryTotal}
+          bookmarkTotal={dashboardBookmarkTotal}
+          selectedBoardId={selectedBoardId}
+          categoryCountOnBoard={dashboardCategoryCountOnBoard}
+          linkCountOnBoard={dashboardLinkCountOnBoard}
+        />
       </main>
 
       <SettingsModal

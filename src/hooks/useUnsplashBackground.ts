@@ -73,17 +73,20 @@ export function useUnsplashBackground(options: UseUnsplashBackgroundOptions) {
 
   const storageKey = `${STORAGE_KEY_PREFIX}${scope}`;
 
-  const loadFromCache = useCallback(async () => {
+  /** @returns true if cache had a usable image (avoids racing fetch before setState flushes). */
+  const loadFromCache = useCallback(async (): Promise<boolean> => {
     try {
       const raw = await chromeStorageAdapter.getItem(storageKey);
-      if (!raw) return;
+      if (!raw) return false;
       const parsed = JSON.parse(raw) as UnsplashBackgroundState;
-      if (parsed && parsed.imageUrl) {
+      if (parsed?.imageUrl) {
         setState(parsed);
+        return true;
       }
     } catch {
       // ignore cache errors
     }
+    return false;
   }, [storageKey]);
 
   const persist = useCallback(
@@ -140,17 +143,16 @@ export function useUnsplashBackground(options: UseUnsplashBackgroundOptions) {
     [enabled, baseQuery, timeOfDayMode, morningQuery, noonQuery, eveningQuery, persist]
   );
 
-  // Initial load from cache, then optional initial fetch.
+  // Initial load from cache, then fetch only if cache miss (no setState race).
   useEffect(() => {
     if (!enabled) return;
-    loadFromCache().then(() => {
-      // Nếu chưa có ảnh trong cache thì fetch lần đầu.
-      setState((current) => {
-        if (current.imageUrl) return current;
-        fetchOnce('initial');
-        return current;
-      });
+    let cancelled = false;
+    loadFromCache().then((hadCached) => {
+      if (!cancelled && !hadCached) fetchOnce('initial');
     });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, loadFromCache, fetchOnce]);
 
   // Interval auto refresh
