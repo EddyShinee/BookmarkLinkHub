@@ -102,7 +102,7 @@ export default function Dashboard({
   const [searchDataLoaded, setSearchDataLoaded] = useState(false);
   const [globalCategoryCount, setGlobalCategoryCount] = useState(0);
   const [globalBookmarkCount, setGlobalBookmarkCount] = useState(0);
-  const [addModalOpen, setAddModalOpen] = useState(!!initialAddBookmark);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(!!initialOpenSettings);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -157,6 +157,8 @@ export default function Dashboard({
 
   const [activeDragCategory, setActiveDragCategory] = useState<Category & { bookmarks: Bookmark[] } | null>(null);
   const quickCaptureInFlightRef = useRef(false);
+  const initialAddHandledRef = useRef(false);
+  const initialAddPromptedBoardRef = useRef(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -403,40 +405,91 @@ export default function Dashboard({
   }, [userMenuOpen]);
 
   useEffect(() => {
-    if (!initialAddBookmark) return;
+    if (!initialAddBookmark || initialAddHandledRef.current) return;
+    if (!uiRestored) return;
     const t = getT(settings.locale);
     if (boards.length === 0) {
-      setConfirmDialog({
-        open: true,
-        title: t.addBookmark,
-        message: t.addBookmarkNeedBoard,
-        confirmLabel: t.createBoard,
-        danger: false,
-        onConfirm: () => {
-          setConfirmDialog((d) => ({ ...d, open: false }));
-          setBoardModalOpen(true);
-        },
-      });
-      setAddModalOpen(false);
+      if (!initialAddPromptedBoardRef.current) {
+        setBoardModalOpen(true);
+        initialAddPromptedBoardRef.current = true;
+      }
       return;
     }
-    if (categories.length === 0) {
-      setConfirmDialog({
-        open: true,
-        title: t.addBookmark,
-        message: t.addBookmarkNeedCategory,
-        confirmLabel: t.createCategory,
-        danger: false,
-        onConfirm: () => {
-          setConfirmDialog((d) => ({ ...d, open: false }));
-          setCategoryModalOpen(true);
+    if (!selectedBoardId) return;
+    if (categoriesLoading || columnsLoading) return;
+    initialAddHandledRef.current = true;
+    initialAddPromptedBoardRef.current = false;
+    (async () => {
+      const url = initialAddBookmark.url?.trim();
+      if (!url) return;
+      const exists = categories.some((cat) => cat.bookmarks?.some((b) => b.url === url));
+      if (exists) {
+        setToast({ message: t.quickCaptureDuplicate, type: 'info' });
+        return;
+      }
+      let targetCategoryId = categories[0]?.id ?? null;
+      if (!targetCategoryId) {
+        const firstColId = boardColumns[0]?.id ?? null;
+        const { data: newCat, error: catError } = await supabase
+          .from('categories')
+          .insert({
+            board_id: selectedBoardId,
+            column_id: firstColId,
+            name: t.quickCaptureCategoryName,
+            sort_order: 0,
+          })
+          .select('id')
+          .single();
+        if (catError || !newCat) {
+          setToast({ message: t.quickCaptureNeedCategory, type: 'error' });
+          return;
+        }
+        targetCategoryId = newCat.id;
+      }
+      const targetCat = categories.find((c) => c.id === targetCategoryId);
+      const maxOrder = targetCat?.bookmarks?.length
+        ? Math.max(...targetCat.bookmarks.map((b) => b.sort_order), 0) + 1
+        : 0;
+      const { data: inserted, error: insertError } = await supabase
+        .from('bookmarks')
+        .insert({
+          category_id: targetCategoryId,
+          url,
+          title: initialAddBookmark.title?.trim() || url,
+          description: null,
+          sort_order: maxOrder,
+        })
+        .select('id')
+        .single();
+      if (insertError || !inserted) {
+        setToast({ message: t.quickCaptureFailed, type: 'error' });
+        return;
+      }
+      await refetchCategories();
+      const savedTitle = initialAddBookmark.title?.trim() || url;
+      setToast({
+        message: t.quickCaptureSaved.replace('{title}', savedTitle),
+        type: 'success',
+        actionLabel: t.quickCaptureUndo,
+        duration: 6000,
+        onAction: async () => {
+          await supabase.from('bookmarks').delete().eq('id', inserted.id);
+          await refetchCategories();
         },
       });
-      setAddModalOpen(false);
-      return;
-    }
-    setAddModalOpen(true);
-  }, [initialAddBookmark, boards.length, categories.length, settings.locale]);
+    })();
+  }, [
+    initialAddBookmark,
+    boards.length,
+    categories,
+    categoriesLoading,
+    columnsLoading,
+    settings.locale,
+    selectedBoardId,
+    boardColumns,
+    uiRestored,
+    refetchCategories,
+  ]);
 
   useEffect(() => {
     if (initialOpenAuthenticator) setAuthenticatorModalOpen(true);
@@ -1953,6 +2006,8 @@ export default function Dashboard({
       <BookmarkModal
         open={bookmarkModalOpen || addModalOpen}
         categories={categories}
+        boards={boards}
+        defaultBoardId={selectedBoardId}
         editBookmark={bookmarkEditing}
         initialUrl={initialAddBookmark?.url ?? ''}
         initialTitle={initialAddBookmark?.title ?? ''}

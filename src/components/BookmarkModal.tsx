@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import type { Category } from '../hooks/useBookmarks';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Board, Category } from '../hooks/useBookmarks';
+import { supabase } from '../lib/supabaseClient';
 
 interface BookmarkModalProps {
   open: boolean;
   categories: Category[];
+  boards: Board[];
+  defaultBoardId?: string | null;
   editBookmark: { id: string; url: string; title: string; description?: string | null; category_id: string } | null;
   initialUrl?: string;
   initialTitle?: string;
@@ -15,6 +18,8 @@ interface BookmarkModalProps {
 export default function BookmarkModal({
   open,
   categories,
+  boards,
+  defaultBoardId,
   editBookmark,
   initialUrl = '',
   initialTitle = '',
@@ -25,23 +30,92 @@ export default function BookmarkModal({
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [boardId, setBoardId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
+      const defaultCategories = allCategories.length ? allCategories : categories;
+      const editCategory = editBookmark
+        ? defaultCategories.find((c) => c.id === editBookmark.category_id) ?? categories.find((c) => c.id === editBookmark.category_id)
+        : undefined;
+      const resolvedBoardId =
+        editCategory?.board_id ??
+        (defaultBoardId ?? undefined) ??
+        categories[0]?.board_id ??
+        boards[0]?.id ??
+        '';
       setUrl(editBookmark?.url ?? initialUrl);
       setTitle(editBookmark?.title ?? initialTitle);
       setDescription(editBookmark?.description ?? '');
-      setCategoryId(editBookmark?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? '');
+      setBoardId(resolvedBoardId);
+      setCategoryId(editBookmark?.category_id ?? defaultCategoryId ?? '');
     }
-  }, [open, editBookmark, initialUrl, initialTitle, defaultCategoryId, categories]);
+  }, [
+    open,
+    editBookmark,
+    initialUrl,
+    initialTitle,
+    defaultCategoryId,
+    defaultBoardId,
+    categories,
+    boards,
+    allCategories,
+  ]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const boardIds = boards.map((b) => b.id);
+    if (boardIds.length <= 1) {
+      setAllCategories(categories);
+      return;
+    }
+    setCategoriesLoading(true);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('categories')
+          .select('id, board_id, name, sort_order')
+          .in('board_id', boardIds)
+          .order('sort_order', { ascending: true });
+        if (!cancelled) {
+          setAllCategories((data ?? []) as Category[]);
+        }
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, boards, categories]);
+
+  const categoriesForBoard = useMemo(
+    () => (boardId ? allCategories.filter((c) => c.board_id === boardId) : []),
+    [allCategories, boardId]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (!boardId) return;
+    if (categoriesForBoard.length === 0) {
+      setCategoryId('');
+      return;
+    }
+    if (!categoriesForBoard.some((c) => c.id === categoryId)) {
+      setCategoryId(categoriesForBoard[0].id);
+    }
+  }, [open, boardId, categoriesForBoard, categoryId]);
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim() || !title.trim() || !categoryId) return;
+    if (!url.trim() || !title.trim() || !boardId || !categoryId) return;
     setSaving(true);
     try {
       await onSave({ url: url.trim(), title: title.trim(), description: description.trim(), category_id: categoryId }, editBookmark?.id);
@@ -88,20 +162,36 @@ export default function BookmarkModal({
               className="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40"
             />
           </div>
-          {!editBookmark && (
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1.5">Category</label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-accent/40"
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-sidebar">{c.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1.5">Board</label>
+            <select
+              value={boardId}
+              onChange={(e) => setBoardId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-accent/40"
+            >
+              {boards.map((b) => (
+                <option key={b.id} value={b.id} className="bg-sidebar">{b.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1.5">Category</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-accent/40"
+            >
+              {categoriesForBoard.map((c) => (
+                <option key={c.id} value={c.id} className="bg-sidebar">{c.name}</option>
+              ))}
+            </select>
+            {categoriesLoading && (
+              <p className="text-[11px] text-text-muted mt-1">Đang tải category...</p>
+            )}
+            {!categoriesLoading && boardId && categoriesForBoard.length === 0 && (
+              <p className="text-[11px] text-text-muted mt-1">Board này chưa có category.</p>
+            )}
+          </div>
           <div className="flex justify-end gap-1.5 pt-2">
             <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
               Hủy
