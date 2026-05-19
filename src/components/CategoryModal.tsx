@@ -29,12 +29,15 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
   const settings = useSettings();
   const t = getT(settings.locale);
   const [name, setName] = useState('');
-  const [useCustomColor, setUseCustomColor] = useState(false);
+  const [colorMode, setColorMode] = useState<'default' | 'random' | 'custom'>('default');
   const [color, setColor] = useState('#818CF8');
+  const [randomColor, setRandomColor] = useState('#818CF8');
   const [bgOpacity, setBgOpacity] = useState(15);
   const [saving, setSaving] = useState(false);
   const [moveToBoardModalOpen, setMoveToBoardModalOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const pickRandomColor = () => CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
 
   useEffect(() => {
     if (open) {
@@ -44,18 +47,20 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
         const alphaHex = editCategory.color.slice(7, 9);
         const alpha = parseInt(alphaHex, 16);
         const pct = Math.round((alpha / 255) * 100);
-        setUseCustomColor(true);
+        setColorMode('custom');
         setColor(base);
         setBgOpacity(Number.isFinite(pct) ? pct : 15);
       } else if (editCategory?.color) {
-        setUseCustomColor(true);
+        setColorMode('custom');
         setColor(editCategory.color);
         setBgOpacity(15);
       } else {
-        setUseCustomColor(false);
+        setColorMode('default');
         setColor('#818CF8');
         setBgOpacity(15);
       }
+      const nextRandom = pickRandomColor();
+      setRandomColor(nextRandom);
       setMoveToBoardModalOpen(!!initialOpenMoveModal);
     }
   }, [open, editCategory?.name, editCategory?.color, initialOpenMoveModal]);
@@ -72,11 +77,16 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const finalColor = useCustomColor
-        ? `${color}${Math.round((bgOpacity / 100) * 255)
-            .toString(16)
-            .padStart(2, '0')}`
-        : null;
+      const opacityHex = Math.round((bgOpacity / 100) * 255)
+        .toString(16)
+        .padStart(2, '0');
+      const baseRandom = (randomColor || '#818CF8').slice(0, 7);
+      const finalColor =
+        colorMode === 'custom'
+          ? `${color}${opacityHex}`
+          : colorMode === 'random'
+            ? `${baseRandom}${opacityHex}`
+            : null;
       await onSave(name.trim(), finalColor, editCategory?.id);
       onClose();
     } finally {
@@ -130,9 +140,9 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
               <div className="flex items-center gap-2 text-[11px] text-text-muted">
                 <button
                   type="button"
-                  onClick={() => setUseCustomColor(false)}
+                  onClick={() => setColorMode('default')}
                   className={`px-2 py-0.5 rounded-full border text-[11px] ${
-                    !useCustomColor
+                    colorMode === 'default'
                       ? 'border-accent bg-accent/20 text-accent'
                       : 'border-white/10 text-text-muted hover:border-white/30'
                   }`}
@@ -141,9 +151,25 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUseCustomColor(true)}
+                  onClick={() => {
+                    const next = pickRandomColor();
+                    setRandomColor(next);
+                    setColor(next);
+                    setColorMode('random');
+                  }}
                   className={`px-2 py-0.5 rounded-full border text-[11px] ${
-                    useCustomColor
+                    colorMode === 'random'
+                      ? 'border-accent bg-accent/20 text-accent'
+                      : 'border-white/10 text-text-muted hover:border-white/30'
+                  }`}
+                >
+                  Ngẫu nhiên
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setColorMode('custom')}
+                  className={`px-2 py-0.5 rounded-full border text-[11px] ${
+                    colorMode === 'custom'
                       ? 'border-accent bg-accent/20 text-accent'
                       : 'border-white/10 text-text-muted hover:border-white/30'
                   }`}
@@ -152,7 +178,7 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
                 </button>
               </div>
             </div>
-            {useCustomColor && (
+            {colorMode === 'custom' && (
               <>
                 <div className="grid grid-cols-8 gap-1.5 mb-2">
                   {CATEGORY_COLORS.map((c) => (
@@ -196,6 +222,21 @@ export default function CategoryModal({ open, boardId, editCategory, boards = []
                   </div>
                 </div>
               </>
+            )}
+            {colorMode === 'random' && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-text-muted">Xem trước:</span>
+                <div
+                  className="flex-1 px-3 py-2 rounded-lg border border-white/10 text-[11px] text-white/90"
+                  style={{
+                    backgroundColor: `${randomColor}${Math.round((bgOpacity / 100) * 255)
+                      .toString(16)
+                      .padStart(2, '0')}`,
+                  }}
+                >
+                  Màu ngẫu nhiên
+                </div>
+              </div>
             )}
           </div>
           {canMoveTo && (
