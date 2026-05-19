@@ -54,7 +54,7 @@ export default function Toast({
         };
 
   return (
-    <div className="fixed top-6 right-6 z-[300] pointer-events-none">
+    <div className="fixed bottom-16 inset-x-0 z-[300] flex justify-center px-4 pointer-events-none">
       <div className="toast-pop-in pointer-events-auto relative max-w-[min(90vw,420px)] min-w-[min(260px,90vw)]">
         {/* soft colored bloom behind glass */}
         <div
