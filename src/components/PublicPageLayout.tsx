@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { type ReactNode, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface PublicPageLayoutProps {
@@ -11,10 +11,36 @@ interface PublicPageLayoutProps {
 export default function PublicPageLayout({ title, subtitle, children }: PublicPageLayoutProps) {
   const settings = useSettings();
   const isLight = settings.theme === 'light';
+  const isEnglish = settings.locale === 'en';
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const lang = params.get('lang');
+    if (lang === 'en' || lang === 'vi') {
+      settings.setLocale(lang);
+    }
+  }, [location.search, settings]);
 
   const navLinkClass = isLight
     ? 'text-slate-600 hover:text-slate-900'
     : 'text-[#9fb3d9] hover:text-white';
+
+  const navLabels = isEnglish
+    ? {
+        privacy: 'Privacy',
+        terms: 'Terms',
+        support: 'Support',
+        openApp: 'Open App',
+        tagline: 'Bookmark Manager Extension',
+      }
+    : {
+        privacy: 'Chính sách',
+        terms: 'Điều khoản',
+        support: 'Hỗ trợ',
+        openApp: 'Mở ứng dụng',
+        tagline: 'Trình quản lý bookmark',
+      };
 
   return (
     <div
@@ -35,14 +61,42 @@ export default function PublicPageLayout({ title, subtitle, children }: PublicPa
             <div className="flex flex-col">
               <span className="text-sm font-semibold">LinkHub</span>
               <span className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-[#90a4cb]'}`}>
-                Bookmark Manager Extension
+                {navLabels.tagline}
               </span>
             </div>
           </div>
           <nav className="flex items-center gap-4 text-[12px] font-medium">
-            <Link to="/privacy" className={navLinkClass}>Privacy</Link>
-            <Link to="/terms" className={navLinkClass}>Terms</Link>
-            <Link to="/support" className={navLinkClass}>Support</Link>
+            <Link to="/privacy" className={navLinkClass}>{navLabels.privacy}</Link>
+            <Link to="/terms" className={navLinkClass}>{navLabels.terms}</Link>
+            <Link to="/support" className={navLinkClass}>{navLabels.support}</Link>
+            <div className="flex items-center gap-1 rounded-lg border px-1 py-0.5">
+              <button
+                type="button"
+                onClick={() => settings.setLocale('en')}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                  isEnglish
+                    ? 'bg-[#256af4] text-white'
+                    : isLight
+                      ? 'text-slate-500 hover:bg-slate-100'
+                      : 'text-[#9fb3d9] hover:bg-white/10'
+                }`}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => settings.setLocale('vi')}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                  !isEnglish
+                    ? 'bg-[#256af4] text-white'
+                    : isLight
+                      ? 'text-slate-500 hover:bg-slate-100'
+                      : 'text-[#9fb3d9] hover:bg-white/10'
+                }`}
+              >
+                VI
+              </button>
+            </div>
             <Link
               to="/login"
               className={`px-3 py-1.5 rounded-lg border transition ${
@@ -51,7 +105,7 @@ export default function PublicPageLayout({ title, subtitle, children }: PublicPa
                   : 'border-white/10 text-[#9fb3d9] hover:bg-white/10 hover:text-white'
               }`}
             >
-              Open App
+              {navLabels.openApp}
             </Link>
           </nav>
         </div>
