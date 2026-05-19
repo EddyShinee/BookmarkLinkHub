@@ -51,7 +51,7 @@ export function useCategories(boardId: string | null) {
     try {
       const { data: cats, error: e1 } = await supabase
         .from('categories')
-        .select('id, board_id, column_id, name, color, icon, bg_opacity, sort_order')
+        .select('id, board_id, column_id, name, color, icon, sort_order')
         .eq('board_id', boardId)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
