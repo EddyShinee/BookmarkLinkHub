@@ -85,7 +85,13 @@ export default function Dashboard({
   const { boards, setBoards, loading: boardsLoading, error: boardsError, refetch: refetchBoards } = useBookmarks(user?.id);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const selectedBoard = boards.find((b) => b.id === selectedBoardId) ?? null;
-  const { columns: boardColumns, loading: columnsLoading, refetch: refetchBoardColumns } = useBoardColumns(selectedBoardId);
+  const configuredColumns = selectedBoard?.category_columns ?? null;
+  const expectedColumns = typeof configuredColumns === 'number' ? configuredColumns : undefined;
+  const { columns: boardColumns, loading: columnsLoading, refetch: refetchBoardColumns } = useBoardColumns(
+    selectedBoardId,
+    expectedColumns
+  );
+  const numColumnsPreferred = configuredColumns ?? (boardColumns.length || settings.categoryColumns);
   const { categories, setCategories, loading: categoriesLoading, refetch: refetchCategories } = useCategories(selectedBoardId);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -474,7 +480,6 @@ export default function Dashboard({
   useSearchShortcut(openSpotlight);
 
   // Ensure board has N columns when none (bootstrap); DB check prevents duplicates
-  const numColumnsPreferred = selectedBoard?.category_columns ?? settings.categoryColumns;
   const syncingColumnsRef = useRef(false);
   useEffect(() => {
     syncingColumnsRef.current = false;

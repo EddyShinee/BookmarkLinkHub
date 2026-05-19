@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
+import { readBoardSnapshot, writeBoardSnapshot } from '../lib/dashboardBoardSnapshot';
 import { supabase } from '../lib/supabaseClient';
 
 export interface BoardColumn {
@@ -11,24 +11,12 @@ export interface BoardColumn {
   updated_at: string;
 }
 
-export function useBoardColumns(boardId: string | null) {
+export function useBoardColumns(boardId: string | null, expectedColumns?: number | null) {
   const [columns, setColumnsState] = useState<BoardColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const boardIdRef = useRef(boardId);
   boardIdRef.current = boardId;
-  const cacheKey = boardId ? `dashboard_board_columns_${boardId}` : null;
-
-  const persistCache = useCallback(
-    (next: BoardColumn[]) => {
-      if (!cacheKey) return;
-      chromeStorageAdapter.setItem(
-        cacheKey,
-        JSON.stringify({ updatedAt: Date.now(), columns: next })
-      );
-    },
-    [cacheKey]
-  );
 
   const setColumns = useCallback(
     (value: BoardColumn[] | ((prev: BoardColumn[]) => BoardColumn[])) => {
@@ -36,11 +24,13 @@ export function useBoardColumns(boardId: string | null) {
         const next = typeof value === 'function'
           ? (value as (prev: BoardColumn[]) => BoardColumn[])(prev)
           : value;
-        persistCache(next);
+        if (boardIdRef.current) {
+          writeBoardSnapshot(boardIdRef.current, { columns: next });
+        }
         return next;
       });
     },
-    [persistCache]
+    []
   );
 
   const fetchColumns = useCallback(async (options?: { silent?: boolean }) => {
@@ -64,7 +54,9 @@ export function useBoardColumns(boardId: string | null) {
       if (boardIdRef.current !== boardId) return;
       const next = (data ?? []) as BoardColumn[];
       setColumnsState(next);
-      persistCache(next);
+      if (boardIdRef.current) {
+        writeBoardSnapshot(boardIdRef.current, { columns: next });
+      }
     } catch (e) {
       if (boardIdRef.current !== boardId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -78,30 +70,27 @@ export function useBoardColumns(boardId: string | null) {
         }
       }
     }
-  }, [boardId, persistCache]);
+  }, [boardId]);
 
   useEffect(() => {
     let cancelled = false;
     setColumnsState([]);
     setLoading(!!boardId);
     setError(null);
-    if (!boardId || !cacheKey) {
+    if (!boardId) {
       setLoading(false);
       return;
     }
     (async () => {
       let hadCache = false;
-      const cached = await chromeStorageAdapter.getItem(cacheKey);
-      if (!cancelled && cached) {
-        try {
-          const parsed = JSON.parse(cached) as { columns?: BoardColumn[] };
-          if (parsed?.columns) {
-            setColumnsState(parsed.columns);
-            setLoading(false);
-            hadCache = true;
-          }
-        } catch {
-          // ignore cache parse errors
+      const hasExpected = typeof expectedColumns === 'number';
+      if (hasExpected) {
+        const cached = await readBoardSnapshot(boardId);
+        const cachedColumns = cached?.columns as BoardColumn[] | undefined;
+        if (!cancelled && cachedColumns && cachedColumns.length === expectedColumns) {
+          setColumnsState(cachedColumns);
+          setLoading(false);
+          hadCache = true;
         }
       }
       if (!cancelled) {
@@ -111,7 +100,7 @@ export function useBoardColumns(boardId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [boardId, cacheKey, fetchColumns]);
+  }, [boardId, expectedColumns, fetchColumns]);
 
   return { columns, setColumns, loading, error, refetch: fetchColumns };
 }

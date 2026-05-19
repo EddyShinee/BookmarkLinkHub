@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
+import { readBoardSnapshot, writeBoardSnapshot } from '../lib/dashboardBoardSnapshot';
 import { supabase } from '../lib/supabaseClient';
 import type { Category, Bookmark } from './useBookmarks';
 
@@ -11,18 +11,6 @@ export function useCategories(boardId: string | null) {
   const [error, setError] = useState<Error | null>(null);
   const boardIdRef = useRef(boardId);
   boardIdRef.current = boardId;
-  const cacheKey = boardId ? `dashboard_categories_${boardId}` : null;
-
-  const persistCache = useCallback(
-    (next: CategoryWithBookmarks[]) => {
-      if (!cacheKey) return;
-      chromeStorageAdapter.setItem(
-        cacheKey,
-        JSON.stringify({ updatedAt: Date.now(), categories: next })
-      );
-    },
-    [cacheKey]
-  );
 
   const setCategories = useCallback(
     (value: CategoryWithBookmarks[] | ((prev: CategoryWithBookmarks[]) => CategoryWithBookmarks[])) => {
@@ -30,11 +18,13 @@ export function useCategories(boardId: string | null) {
         const next = typeof value === 'function'
           ? (value as (prev: CategoryWithBookmarks[]) => CategoryWithBookmarks[])(prev)
           : value;
-        persistCache(next);
+        if (boardIdRef.current) {
+          writeBoardSnapshot(boardIdRef.current, { categories: next });
+        }
         return next;
       });
     },
-    [persistCache]
+    []
   );
 
   const fetchCategories = useCallback(async (options?: { silent?: boolean }) => {
@@ -60,11 +50,11 @@ export function useCategories(boardId: string | null) {
       const list = (cats ?? []) as Category[];
       if (list.length === 0) {
         setCategoriesState([]);
+        if (boardIdRef.current) {
+          writeBoardSnapshot(boardIdRef.current, { categories: [] });
+        }
         if (!silent) {
           setLoading(false);
-        }
-        if (silent) {
-          persistCache([]);
         }
         return;
       }
@@ -90,7 +80,9 @@ export function useCategories(boardId: string | null) {
         bookmarks: bookmarksByCategory.get(cat.id) ?? [],
       }));
       setCategoriesState(byCategory);
-      persistCache(byCategory);
+      if (boardIdRef.current) {
+        writeBoardSnapshot(boardIdRef.current, { categories: byCategory });
+      }
     } catch (e) {
       if (boardIdRef.current !== boardId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -104,31 +96,25 @@ export function useCategories(boardId: string | null) {
         }
       }
     }
-  }, [boardId, persistCache]);
+  }, [boardId]);
 
   useEffect(() => {
     let cancelled = false;
     setCategoriesState([]);
     setLoading(!!boardId);
     setError(null);
-    if (!boardId || !cacheKey) {
+    if (!boardId) {
       setLoading(false);
       return;
     }
     (async () => {
       let hadCache = false;
-      const cached = await chromeStorageAdapter.getItem(cacheKey);
-      if (!cancelled && cached) {
-        try {
-          const parsed = JSON.parse(cached) as { categories?: CategoryWithBookmarks[] };
-          if (parsed?.categories) {
-            setCategoriesState(parsed.categories);
-            setLoading(false);
-            hadCache = true;
-          }
-        } catch {
-          // ignore cache parse errors
-        }
+      const cached = await readBoardSnapshot(boardId);
+      const cachedCategories = cached?.categories as CategoryWithBookmarks[] | undefined;
+      if (!cancelled && cachedCategories) {
+        setCategoriesState(cachedCategories);
+        setLoading(false);
+        hadCache = true;
       }
       if (!cancelled) {
         fetchCategories({ silent: hadCache });
@@ -137,7 +123,7 @@ export function useCategories(boardId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [boardId, cacheKey, fetchCategories]);
+  }, [boardId, fetchCategories]);
 
   return { categories, setCategories, loading, error, refetch: fetchCategories };
 }
