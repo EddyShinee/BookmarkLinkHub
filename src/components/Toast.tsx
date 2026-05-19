@@ -45,7 +45,7 @@ export default function Toast({ message, type, open, onClose, duration = 4000 }:
 
   return (
     <div className="fixed bottom-6 inset-x-0 z-[300] flex justify-center px-4 pointer-events-none">
-      <div className="toast-pop-in pointer-events-auto relative max-w-[min(90vw,440px)] min-w-[min(100%,300px)]">
+      <div className="toast-pop-in pointer-events-auto relative max-w-[min(90vw,440px)] min-w-[min(100%,1000px)]">
         {/* soft colored bloom behind glass */}
         <div
           className={`pointer-events-none absolute -inset-3 rounded-[22px] bg-gradient-to-br ${accent.glow} opacity-70 blur-2xl`}
