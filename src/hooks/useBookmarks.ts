@@ -58,7 +58,7 @@ export function useBookmarks(userId: string | undefined) {
     try {
       const { data, error: e } = await supabase
         .from('boards')
-        .select('*')
+        .select('id, name, sort_order, category_columns, category_sort_order')
         .eq('user_id', userId)
         .order('sort_order', { ascending: true });
       if (e) throw e;

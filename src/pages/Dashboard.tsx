@@ -93,6 +93,9 @@ export default function Dashboard({
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([]);
   const [searchDataLoading, setSearchDataLoading] = useState(false);
+  const [searchDataLoaded, setSearchDataLoaded] = useState(false);
+  const [globalCategoryCount, setGlobalCategoryCount] = useState(0);
+  const [globalBookmarkCount, setGlobalBookmarkCount] = useState(0);
   const [addModalOpen, setAddModalOpen] = useState(!!initialAddBookmark);
   const [settingsModalOpen, setSettingsModalOpen] = useState(!!initialOpenSettings);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -294,26 +297,66 @@ export default function Dashboard({
     return () => document.removeEventListener('mousedown', handleMouseDownOutside);
   }, [columnConfigPopupOpen]);
 
-  // Load data for global search across all boards
+  // Reset cached search data when user changes
+  useEffect(() => {
+    setAllCategories([]);
+    setAllBookmarks([]);
+    setSearchDataLoaded(false);
+    if (!user?.id) {
+      setSearchDataLoading(false);
+    }
+  }, [user?.id]);
+
+  const loadSearchData = useCallback(async () => {
+    if (!user?.id || searchDataLoaded || searchDataLoading) return;
+    setSearchDataLoading(true);
+    try {
+      const { data: cats } = await supabase
+        .from('categories')
+        .select('id, board_id, name')
+        .order('sort_order');
+      setAllCategories((cats ?? []) as Category[]);
+      const { data: bms } = await supabase
+        .from('bookmarks')
+        .select('id, category_id, url, title, description, tags, updated_at')
+        .order('sort_order');
+      setAllBookmarks((bms ?? []) as Bookmark[]);
+      setSearchDataLoaded(true);
+    } finally {
+      setSearchDataLoading(false);
+    }
+  }, [user?.id, searchDataLoaded, searchDataLoading]);
+
+  // Lazy-load global search data when user opens search
   useEffect(() => {
     if (!user?.id) return;
-    setSearchDataLoading(true);
+    if (!spotlightOpen && !searchTerm) return;
+    loadSearchData();
+  }, [user?.id, spotlightOpen, searchTerm, loadSearchData]);
+
+  // Lightweight totals for footer (avoid full search dataset on load)
+  useEffect(() => {
+    if (!user?.id) {
+      setGlobalCategoryCount(0);
+      setGlobalBookmarkCount(0);
+      return;
+    }
+    let cancelled = false;
     (async () => {
-      try {
-        const { data: cats } = await supabase
-          .from('categories')
-          .select('*')
-          .order('sort_order');
-        setAllCategories((cats ?? []) as Category[]);
-        const { data: bms } = await supabase
-          .from('bookmarks')
-          .select('*')
-          .order('sort_order');
-        setAllBookmarks((bms ?? []) as Bookmark[]);
-      } finally {
-        setSearchDataLoading(false);
+      const { count: categoryCount } = await supabase
+        .from('categories')
+        .select('id', { count: 'exact', head: true });
+      const { count: bookmarkCount } = await supabase
+        .from('bookmarks')
+        .select('id', { count: 'exact', head: true });
+      if (!cancelled) {
+        setGlobalCategoryCount(categoryCount ?? 0);
+        setGlobalBookmarkCount(bookmarkCount ?? 0);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   useEffect(() => {
@@ -424,8 +467,9 @@ export default function Dashboard({
   }, [selectedBoardId]);
 
   const openSpotlight = useCallback(() => {
+    loadSearchData();
     setSpotlightOpen(true);
-  }, []);
+  }, [loadSearchData]);
 
   useSearchShortcut(openSpotlight);
 
@@ -1272,8 +1316,8 @@ export default function Dashboard({
     (unsplashEnabled && unsplashImageUrl) || settings.backgroundImageUrl || null;
 
   const tDash = getT(settings.locale);
-  const dashboardBookmarkTotal = useMemo(() => allBookmarks.length, [allBookmarks]);
-  const dashboardCategoryTotal = useMemo(() => allCategories.length, [allCategories]);
+  const dashboardBookmarkTotal = globalBookmarkCount;
+  const dashboardCategoryTotal = globalCategoryCount;
   const dashboardCategoryCountOnBoard = useMemo(
     () => (selectedBoardId ? categories.length : 0),
     [selectedBoardId, categories]
