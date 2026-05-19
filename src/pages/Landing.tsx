@@ -47,7 +47,13 @@ export default function Landing() {
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState<'work' | 'break'>('work');
   const [pomodoroCustomMinutes, setPomodoroCustomMinutes] = useState('25');
-  const [toast, setToast] = useState<{ message: string; type: ToastType }>({
+  const [toast, setToast] = useState<{
+    message: string;
+    type: ToastType;
+    actionLabel?: string;
+    onAction?: () => void;
+    duration?: number;
+  }>({
     message: '',
     type: 'info',
   });
@@ -1384,7 +1390,12 @@ export default function Landing() {
           message={toast.message}
           type={toast.type}
           open={!!toast.message}
-          onClose={() => setToast((p) => ({ ...p, message: '' }))}
+          onClose={() =>
+            setToast((p) => ({ ...p, message: '', actionLabel: undefined, onAction: undefined, duration: undefined }))
+          }
+          actionLabel={toast.actionLabel}
+          onAction={toast.onAction}
+          duration={toast.duration}
         />
       </div>
     </div>

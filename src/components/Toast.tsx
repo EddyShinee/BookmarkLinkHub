@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -8,9 +8,19 @@ interface ToastProps {
   open: boolean;
   onClose: () => void;
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
-export default function Toast({ message, type, open, onClose, duration = 4000 }: ToastProps) {
+export default function Toast({
+  message,
+  type,
+  open,
+  onClose,
+  duration = 4000,
+  actionLabel,
+  onAction,
+}: ToastProps) {
   useEffect(() => {
     if (!open || !message) return;
     const t = setTimeout(onClose, duration);
@@ -44,8 +54,8 @@ export default function Toast({ message, type, open, onClose, duration = 4000 }:
         };
 
   return (
-    <div className="fixed bottom-16 inset-x-0 z-[300] flex justify-center px-4 pointer-events-none">
-      <div className="toast-pop-in pointer-events-auto relative max-w-[min(90vw,440px)] min-w-[min(100%,300px)]">
+    <div className="fixed top-6 right-6 z-[300] pointer-events-none">
+      <div className="toast-pop-in pointer-events-auto relative max-w-[min(90vw,420px)] min-w-[min(260px,90vw)]">
         {/* soft colored bloom behind glass */}
         <div
           className={`pointer-events-none absolute -inset-3 rounded-[22px] bg-gradient-to-br ${accent.glow} opacity-70 blur-2xl`}
@@ -81,6 +91,18 @@ export default function Toast({ message, type, open, onClose, duration = 4000 }:
           <p className="relative flex-1 text-sm font-medium leading-snug tracking-tight text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
             {message}
           </p>
+          {actionLabel && onAction && (
+            <button
+              type="button"
+              onClick={() => {
+                onAction();
+                onClose();
+              }}
+              className="relative shrink-0 rounded-full border border-white/20 bg-white/[0.12] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur-sm transition hover:border-white/35 hover:bg-white/[0.22] hover:text-white"
+            >
+              {actionLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

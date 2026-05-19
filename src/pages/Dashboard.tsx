@@ -140,7 +140,13 @@ export default function Dashboard({
   const [dropBookmarkTarget, setDropBookmarkTarget] = useState<{ id: string; categoryId: string; index: number } | null>(null);
 
   const [importLoading, setImportLoading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: ToastType }>({ message: '', type: 'success' });
+  const [toast, setToast] = useState<{
+    message: string;
+    type: ToastType;
+    actionLabel?: string;
+    onAction?: () => void;
+    duration?: number;
+  }>({ message: '', type: 'success' });
 
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -150,6 +156,7 @@ export default function Dashboard({
   const columnConfigPopupRef = useRef<HTMLDivElement>(null);
 
   const [activeDragCategory, setActiveDragCategory] = useState<Category & { bookmarks: Bookmark[] } | null>(null);
+  const quickCaptureInFlightRef = useRef(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -167,7 +174,7 @@ export default function Dashboard({
     if (boardsLoading) {
       setToast({ message: tLoc.loadingBoards, type: 'info' });
     } else if (toast.message === tLoc.loadingBoards) {
-      setToast((p) => ({ ...p, message: '' }));
+      setToast((p) => ({ ...p, message: '', actionLabel: undefined, onAction: undefined, duration: undefined }));
     }
   }, [boardsLoading, settings.locale, toast.message]);
 
@@ -181,7 +188,7 @@ export default function Dashboard({
       toast.message === tLoc.loadingCategories ||
       toast.message?.startsWith(`${tLoc.loadingBoardPrefix} `)
     ) {
-      setToast((p) => ({ ...p, message: '' }));
+      setToast((p) => ({ ...p, message: '', actionLabel: undefined, onAction: undefined, duration: undefined }));
     }
   }, [categoriesLoading, settings.locale, toast.message, boards, selectedBoardId]);
 
@@ -190,7 +197,7 @@ export default function Dashboard({
     if (searchDataLoading) {
       setToast({ message: tLoc.loadingAuth, type: 'info' });
     } else if (toast.message === tLoc.loadingAuth) {
-      setToast((p) => ({ ...p, message: '' }));
+      setToast((p) => ({ ...p, message: '', actionLabel: undefined, onAction: undefined, duration: undefined }));
     }
   }, [searchDataLoading, settings.locale, toast.message]);
 
@@ -478,6 +485,140 @@ export default function Dashboard({
   }, [loadSearchData]);
 
   useSearchShortcut(openSpotlight);
+
+  const resolveQuickCaptureTab = useCallback(async (): Promise<{ url: string; title: string } | null> => {
+    if (typeof chrome === 'undefined' || !chrome.tabs?.query) {
+      const url = window.location.href;
+      if (!url) return null;
+      return { url, title: document.title || url };
+    }
+    return new Promise((resolve) => {
+      chrome.tabs.query({ currentWindow: true }, (tabs) => {
+        if (chrome.runtime?.lastError) {
+          resolve(null);
+          return;
+        }
+        const isValidUrl = (url?: string) =>
+          !!url &&
+          !url.startsWith('chrome-extension://') &&
+          !url.startsWith('chrome://') &&
+          !url.startsWith('edge://') &&
+          !url.startsWith('about:');
+        const activeTab = tabs.find((t) => t.active);
+        let target = isValidUrl(activeTab?.url) ? activeTab : undefined;
+        if (!target) {
+          const candidates = tabs.filter((t) => isValidUrl(t.url));
+          if (candidates.length) {
+            target = candidates.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+          }
+        }
+        if (!target?.url) {
+          resolve(null);
+          return;
+        }
+        resolve({ url: target.url, title: target.title ?? target.url });
+      });
+    });
+  }, []);
+
+  const handleQuickCapture = useCallback(async () => {
+    if (quickCaptureInFlightRef.current) return;
+    quickCaptureInFlightRef.current = true;
+    const t = getT(settings.locale);
+    try {
+      if (!selectedBoardId) {
+        setToast({ message: t.quickCaptureNeedBoard, type: 'info' });
+        return;
+      }
+      if (columnsLoading || categoriesLoading) {
+        setToast({ message: t.quickCaptureLoading, type: 'info' });
+        return;
+      }
+      const tab = await resolveQuickCaptureTab();
+      if (!tab?.url) {
+        setToast({ message: t.quickCaptureNoTab, type: 'error' });
+        return;
+      }
+      const normalizedUrl = tab.url.trim();
+      const exists = categories.some((cat) => cat.bookmarks?.some((b) => b.url === normalizedUrl));
+      if (exists) {
+        setToast({ message: t.quickCaptureDuplicate, type: 'info' });
+        return;
+      }
+      let targetCategoryId = categories[0]?.id ?? null;
+      if (!targetCategoryId) {
+        const firstColId = boardColumns[0]?.id ?? null;
+        const { data: newCat, error: catError } = await supabase
+          .from('categories')
+          .insert({
+            board_id: selectedBoardId,
+            column_id: firstColId,
+            name: t.quickCaptureCategoryName,
+            sort_order: 0,
+          })
+          .select('id')
+          .single();
+        if (catError || !newCat) {
+          setToast({ message: t.quickCaptureNeedCategory, type: 'error' });
+          return;
+        }
+        targetCategoryId = newCat.id;
+      }
+      const targetCat = categories.find((c) => c.id === targetCategoryId);
+      const maxOrder = targetCat?.bookmarks?.length
+        ? Math.max(...targetCat.bookmarks.map((b) => b.sort_order), 0) + 1
+        : 0;
+      const { data: inserted, error: insertError } = await supabase
+        .from('bookmarks')
+        .insert({
+          category_id: targetCategoryId,
+          url: normalizedUrl,
+          title: tab.title ?? normalizedUrl,
+          description: null,
+          sort_order: maxOrder,
+        })
+        .select('id')
+        .single();
+      if (insertError || !inserted) {
+        setToast({ message: t.quickCaptureFailed, type: 'error' });
+        return;
+      }
+      await refetchCategories();
+      const savedTitle = tab.title ?? normalizedUrl;
+      setToast({
+        message: t.quickCaptureSaved.replace('{title}', savedTitle),
+        type: 'success',
+        actionLabel: t.quickCaptureUndo,
+        duration: 6000,
+        onAction: async () => {
+          await supabase.from('bookmarks').delete().eq('id', inserted.id);
+          await refetchCategories();
+        },
+      });
+    } finally {
+      quickCaptureInFlightRef.current = false;
+    }
+  }, [
+    boardColumns,
+    categories,
+    categoriesLoading,
+    columnsLoading,
+    resolveQuickCaptureTab,
+    selectedBoardId,
+    settings.locale,
+    refetchCategories,
+  ]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        handleQuickCapture();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleQuickCapture]);
 
   // Ensure board has N columns when none (bootstrap); DB check prevents duplicates
   const syncingColumnsRef = useRef(false);
@@ -1848,7 +1989,10 @@ export default function Dashboard({
         message={toast.message}
         type={toast.type}
         open={!!toast.message}
-        onClose={() => setToast((p) => ({ ...p, message: '' }))}
+        onClose={() => setToast((p) => ({ ...p, message: '', actionLabel: undefined, onAction: undefined, duration: undefined }))}
+        actionLabel={toast.actionLabel}
+        onAction={toast.onAction}
+        duration={toast.duration}
       />
 
       <MoveBookmarkModal
