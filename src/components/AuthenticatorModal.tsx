@@ -35,6 +35,23 @@ function getEntryColor(issuer: string, index: number) {
   return ENTRY_COLORS[Math.abs(n) % ENTRY_COLORS.length];
 }
 
+function parseOtpAuthData(data: string, t: ReturnType<typeof getT>) {
+  if (!data.startsWith('otpauth://')) {
+    return { error: t.invalidOtpauth };
+  }
+  const url = new URL(data.replace('otpauth://', 'https://x/'));
+  const secret = url.searchParams.get('secret');
+  if (!secret) {
+    return { error: t.noSecretInQR };
+  }
+  const pathLabel = url.pathname.replace(/^\/totp\/?/i, '').replace(/^\//, '');
+  const label = decodeURIComponent(pathLabel || '');
+  const issuerParam = url.searchParams.get('issuer') || '';
+  const issuer = issuerParam ? decodeURIComponent(issuerParam) : (label.split(':')[0] || 'Unknown');
+  const accountName = label.includes(':') ? label.split(':').slice(1).join(':').trim() : label || 'Account';
+  return { issuer, accountName, secret };
+}
+
 function useTotpTick() {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -474,8 +491,20 @@ function AddEntryPanel(props: AddEntryPanelProps) {
   } = props;
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const scanCanvasRef = React.useRef<HTMLCanvasElement>(null);
+  const scanTimerRef = React.useRef<number | null>(null);
+  const jsqrRef = React.useRef<null | ((data: Uint8ClampedArray, width: number, height: number) => { data: string } | null)>(null);
+  const cameraStreamRef = React.useRef<MediaStream | null>(null);
+  const scanLockedRef = React.useRef(false);
+  const blackFrameCountRef = React.useRef(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [cameraDeviceId, setCameraDeviceId] = useState<string | null>(null);
   const currentImageUrl = props.imagePreviewUrl || props.capturedImageUrl;
+  const { addEntry } = useAuthenticatorEntries(userId);
 
   const setFileFromFile = useCallback(
     (file: File) => {
@@ -525,6 +554,70 @@ function AddEntryPanel(props: AddEntryPanelProps) {
 
   const handleCaptureScreen = useCallback(() => {
     setQrDecodeError(null);
+    const captureFromStream = async (stream: MediaStream) => {
+      try {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.muted = true;
+        await video.play();
+        const ok = await waitForVideoFrame(video, 2000);
+        if (!ok) throw new Error('no-frame');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        stream.getTracks().forEach((track) => track.stop());
+        return canvas.toDataURL('image/png');
+      } finally {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+
+    if (navigator.mediaDevices?.getDisplayMedia) {
+      (async () => {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const dataUrl = await captureFromStream(stream);
+          if (props.capturedImageUrl?.startsWith('blob:')) URL.revokeObjectURL(props.capturedImageUrl);
+          setCapturedImageUrl(dataUrl);
+          setSelectedFile(null);
+          setImagePreviewUrl(null);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : '';
+          setQrDecodeError(t.captureError + (msg ? ` (${msg})` : ''));
+        }
+      })();
+      return;
+    }
+    if (typeof chrome !== 'undefined' && (chrome as { desktopCapture?: { chooseDesktopMedia?: Function } }).desktopCapture?.chooseDesktopMedia) {
+      (chrome as { desktopCapture: { chooseDesktopMedia: Function } }).desktopCapture.chooseDesktopMedia(
+        ['screen', 'window', 'tab'],
+        async (streamId: string) => {
+          if (!streamId) {
+            setQrDecodeError(t.captureError);
+            return;
+          }
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: streamId } as any,
+              } as MediaTrackConstraints,
+            });
+            const dataUrl = await captureFromStream(stream);
+            if (props.capturedImageUrl?.startsWith('blob:')) URL.revokeObjectURL(props.capturedImageUrl);
+            setCapturedImageUrl(dataUrl);
+            setSelectedFile(null);
+            setImagePreviewUrl(null);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : '';
+            setQrDecodeError(t.captureError + (msg ? ` (${msg})` : ''));
+          }
+        }
+      );
+      return;
+    }
     if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
       setQrDecodeError(t.captureNotAvailable);
       return;
@@ -536,13 +629,209 @@ function AddEntryPanel(props: AddEntryPanelProps) {
         return;
       }
       if (res?.ok && res.dataUrl) {
-        if (props.capturedImageUrl) URL.revokeObjectURL(props.capturedImageUrl);
+        if (props.capturedImageUrl?.startsWith('blob:')) URL.revokeObjectURL(props.capturedImageUrl);
         setCapturedImageUrl(res.dataUrl);
       } else if (res && !res.ok) {
         setQrDecodeError(t.captureError + (res.error ? ` (${res.error})` : ''));
       }
     });
-  }, [setCapturedImageUrl, setQrDecodeError, props.capturedImageUrl, t]);
+  }, [setCapturedImageUrl, setQrDecodeError, props.capturedImageUrl, setSelectedFile, setImagePreviewUrl, t]);
+
+  const waitForVideoFrame = useCallback((video: HTMLVideoElement, timeoutMs = 1800) => new Promise<boolean>((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        resolve(false);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }), []);
+
+  const stopCamera = useCallback(() => {
+    if (scanTimerRef.current) {
+      window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+    const stream = cameraStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    cameraStreamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    scanLockedRef.current = false;
+    blackFrameCountRef.current = 0;
+    setCameraActive(false);
+  }, []);
+
+  const refreshCameraDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter((d) => d.kind === 'videoinput');
+    setCameraDevices(cams);
+    if (!cameraDeviceId && cams.length > 0) {
+      setCameraDeviceId(cams[0].deviceId);
+    }
+  }, [cameraDeviceId]);
+
+  const handleAddFromOtpAuth = useCallback(
+    async (data: string) => {
+      const parsed = parseOtpAuthData(data, t);
+      if ('error' in parsed) {
+        setQrDecodeError(parsed.error);
+        return;
+      }
+      try {
+        await addEntry(parsed.issuer, parsed.accountName, parsed.secret);
+        onEntryAdded();
+      } catch (saveErr: unknown) {
+        const saveMsg = saveErr instanceof Error ? saveErr.message : (saveErr && typeof saveErr === 'object' && 'message' in saveErr) ? String((saveErr as { message: unknown }).message) : typeof saveErr === 'string' ? saveErr : '';
+        const isSchemaCache = saveMsg && /schema cache|could not find the table/i.test(saveMsg);
+        const hint = isSchemaCache ? ` ${t.schemaCacheHint} ${t.connectedTo}: ${supabaseUrlDisplay}` : '';
+        setQrDecodeError(saveMsg ? `${t.saveAccountError} ${saveMsg}.${hint}` : t.saveAccountError);
+      }
+    },
+    [addEntry, onEntryAdded, setQrDecodeError, t]
+  );
+
+  const startCamera = useCallback(async (preferredDeviceId?: string | null) => {
+    setQrDecodeError(null);
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError(t.cameraNotAvailable);
+      return;
+    }
+    stopCamera();
+    const tryStart = async (constraints: MediaStreamConstraints) => {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        const ok = await waitForVideoFrame(videoRef.current);
+        if (!ok) {
+          stream.getTracks().forEach((track) => track.stop());
+          cameraStreamRef.current = null;
+          return false;
+        }
+      }
+      return true;
+    };
+    try {
+      const deviceConstraints = preferredDeviceId
+        ? { deviceId: { exact: preferredDeviceId } }
+        : { facingMode: { ideal: 'environment' } };
+      const ok = await tryStart({ video: deviceConstraints });
+      if (!ok) {
+        const fallbackOk = await tryStart({ video: true });
+        if (!fallbackOk) throw new Error('no-video');
+      }
+      setCameraActive(true);
+      await refreshCameraDevices();
+    } catch (err) {
+      const name = err instanceof Error ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setCameraError(t.cameraPermissionDenied);
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        setCameraError(t.cameraNotAvailable);
+      } else if ((err as Error)?.message === 'no-video') {
+        setCameraError(t.cameraNoFrame);
+      } else {
+        setCameraError(t.cameraStartError);
+      }
+    }
+  }, [setQrDecodeError, t, stopCamera, waitForVideoFrame, refreshCameraDevices]);
+
+  const handleSwitchCamera = useCallback(() => {
+    if (cameraDevices.length <= 1) return;
+    const currentIdx = cameraDevices.findIndex((d) => d.deviceId === cameraDeviceId);
+    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % cameraDevices.length : 0;
+    const nextId = cameraDevices[nextIdx]?.deviceId;
+    setCameraDeviceId(nextId ?? null);
+    if (nextId) {
+      startCamera(nextId);
+    }
+  }, [cameraDevices, cameraDeviceId, startCamera]);
+
+  useEffect(() => {
+    if (!cameraActive) return;
+    let cancelled = false;
+    const run = async () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      const canvas = scanCanvasRef.current;
+      if (!video || !canvas) {
+        scanTimerRef.current = window.setTimeout(run, 300);
+        return;
+      }
+      if (!jsqrRef.current) {
+        const jsQR = (await import('jsqr')).default;
+        jsqrRef.current = (data, width, height) => jsQR(data, width, height);
+      }
+      if (video.readyState < 2) {
+        scanTimerRef.current = window.setTimeout(run, 300);
+        return;
+      }
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) {
+        scanTimerRef.current = window.setTimeout(run, 300);
+        return;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        scanTimerRef.current = window.setTimeout(run, 300);
+        return;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(video, 0, 0, width, height);
+      const imageData = ctx.getImageData(0, 0, width, height);
+      let sum = 0;
+      let samples = 0;
+      for (let i = 0; i < imageData.data.length; i += 4 * 18) {
+        sum += imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2];
+        samples += 1;
+      }
+      const avg = samples ? sum / (samples * 3) : 0;
+      if (avg < 6) {
+        blackFrameCountRef.current += 1;
+        if (blackFrameCountRef.current >= 8) {
+          setCameraError(t.cameraBlackFeed);
+        }
+      } else {
+        blackFrameCountRef.current = 0;
+        if (cameraError === t.cameraBlackFeed) {
+          setCameraError(null);
+        }
+      }
+      const result = jsqrRef.current?.(imageData.data, width, height);
+      if (result?.data && !scanLockedRef.current) {
+        scanLockedRef.current = true;
+        stopCamera();
+        await handleAddFromOtpAuth(result.data);
+        return;
+      }
+      scanTimerRef.current = window.setTimeout(run, 280);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      if (scanTimerRef.current) {
+        window.clearTimeout(scanTimerRef.current);
+        scanTimerRef.current = null;
+      }
+    };
+  }, [cameraActive, handleAddFromOtpAuth, stopCamera]);
+
+  useEffect(() => () => stopCamera(), [stopCamera]);
 
   return (
     <>
@@ -610,7 +899,19 @@ function AddEntryPanel(props: AddEntryPanelProps) {
                   <h2 className="text-base font-semibold text-white">{t.scanQRCode}</h2>
                 </div>
                 <div className="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-[#314368] ring-2 ring-transparent ring-offset-2 ring-offset-[#182234] focus-within:ring-accent">
-                  {currentImageUrl ? (
+                  {cameraActive ? (
+                    <div className="absolute inset-0 flex flex-col">
+                      <video
+                        ref={videoRef}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        muted
+                        playsInline
+                        autoPlay
+                      />
+                      <div className="absolute inset-0 border-2 border-white/15 pointer-events-none" />
+                      <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-accent/70 shadow-[0_0_14px_rgba(129,140,248,0.8)]" />
+                    </div>
+                  ) : currentImageUrl ? (
                     <div className="absolute inset-0 flex flex-col">
                       <QRImageCropAndDecode
                         t={t}
@@ -641,8 +942,36 @@ function AddEntryPanel(props: AddEntryPanelProps) {
                   {props.qrDecodeError && (
                     <p className="absolute top-2 left-2 right-2 text-xs text-red-400 bg-black/60 px-2 py-1 rounded">{props.qrDecodeError}</p>
                   )}
+                  {cameraError && (
+                    <p className="absolute bottom-2 left-2 right-2 text-xs text-red-400 bg-black/60 px-2 py-1 rounded">{cameraError}</p>
+                  )}
                 </div>
-                <p className="text-sm text-[#90a4cb] text-center">{t.pointCameraAtQR}</p>
+                <canvas ref={scanCanvasRef} className="hidden" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={cameraActive ? stopCamera : () => startCamera(cameraDeviceId)}
+                      className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
+                        cameraActive
+                          ? 'bg-white/10 text-white border border-white/20 hover:bg-white/15'
+                          : 'bg-accent/20 text-accent border border-accent/50 hover:bg-accent/30'
+                      }`}
+                    >
+                      {cameraActive ? t.stopCamera : t.startCamera}
+                    </button>
+                    {cameraDevices.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleSwitchCamera}
+                        className="px-3 py-2 rounded-lg text-xs font-medium border border-white/20 text-[#90a4cb] hover:text-white hover:bg-white/10 transition-colors"
+                      >
+                        {t.switchCamera}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm text-[#90a4cb] text-center">{t.pointCameraAtQR}</p>
+                </div>
               </div>
 
               <div className="flex md:flex-col items-center justify-center gap-4 text-[#90a4cb] shrink-0">
@@ -695,6 +1024,7 @@ function AddEntryPanel(props: AddEntryPanelProps) {
                     {t.captureScreen}
                   </button>
                 </div>
+                <p className="text-[11px] text-[#90a4cb] text-center">{t.screenCaptureHint}</p>
               </div>
             </div>
           </div>
@@ -858,22 +1188,12 @@ function QRImageCropAndDecode({ t, imageUrl, userId, onEntryAdded, onError, embe
       }
 
       const data = result.data;
-      if (!data.startsWith('otpauth://')) {
-        onError(t.invalidOtpauth);
+      const parsed = parseOtpAuthData(data, t);
+      if ('error' in parsed) {
+        onError(parsed.error);
         return;
       }
-
-      const url = new URL(data.replace('otpauth://', 'https://x/'));
-      const secret = url.searchParams.get('secret');
-      if (!secret) {
-        onError(t.noSecretInQR);
-        return;
-      }
-      const pathLabel = url.pathname.replace(/^\/totp\/?/i, '').replace(/^\//, '');
-      const label = decodeURIComponent(pathLabel || '');
-      const issuerParam = url.searchParams.get('issuer') || '';
-      const issuer = issuerParam ? decodeURIComponent(issuerParam) : (label.split(':')[0] || 'Unknown');
-      const accountName = label.includes(':') ? label.split(':').slice(1).join(':').trim() : label || 'Account';
+      const { issuer, accountName, secret } = parsed;
 
       try {
         await addEntry(issuer, accountName, secret);

@@ -9,7 +9,9 @@
     "contextMenus",
     "activeTab",
     "tabs",
-    "windows"
+    "windows",
+    "videoCapture",
+    "desktopCapture"
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
