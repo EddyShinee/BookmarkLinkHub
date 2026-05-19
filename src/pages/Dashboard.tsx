@@ -418,71 +418,24 @@ export default function Dashboard({
       return;
     }
     if (!selectedBoardId) return;
-    if (!initialAddPromptedBoardRef.current) {
-      initialAddPromptedBoardRef.current = true;
+    const url = initialAddBookmark.url?.trim();
+    if (!url) {
+      initialAddHandledRef.current = true;
       return;
     }
+    const duplicateCategory = categories.find((cat) => cat.bookmarks?.some((b) => b.url === url));
+    if (duplicateCategory) {
+      const boardName = selectedBoard?.name ?? t.searchGlobalBoards;
+      const msg = `${t.quickCaptureDuplicate} (${boardName} / ${duplicateCategory.name})`;
+      setToast({ message: msg, type: 'info' });
+      initialAddHandledRef.current = true;
+      return;
+    }
+    setBookmarkEditing(null);
+    setAddBookmarkCategoryId(categories[0]?.id ?? null);
+    setAddModalOpen(true);
     initialAddHandledRef.current = true;
     initialAddPromptedBoardRef.current = false;
-    (async () => {
-      const url = initialAddBookmark.url?.trim();
-      if (!url) return;
-      const exists = categories.some((cat) => cat.bookmarks?.some((b) => b.url === url));
-      if (exists) {
-        setToast({ message: t.quickCaptureDuplicate, type: 'info' });
-        return;
-      }
-      let targetCategoryId = categories[0]?.id ?? null;
-      if (!targetCategoryId) {
-        const firstColId = boardColumns[0]?.id ?? null;
-        const { data: newCat, error: catError } = await supabase
-          .from('categories')
-          .insert({
-            board_id: selectedBoardId,
-            column_id: firstColId,
-            name: t.quickCaptureCategoryName,
-            sort_order: 0,
-          })
-          .select('id')
-          .single();
-        if (catError || !newCat) {
-          setToast({ message: t.quickCaptureNeedCategory, type: 'error' });
-          return;
-        }
-        targetCategoryId = newCat.id;
-      }
-      const targetCat = categories.find((c) => c.id === targetCategoryId);
-      const maxOrder = targetCat?.bookmarks?.length
-        ? Math.max(...targetCat.bookmarks.map((b) => b.sort_order), 0) + 1
-        : 0;
-      const { data: inserted, error: insertError } = await supabase
-        .from('bookmarks')
-        .insert({
-          category_id: targetCategoryId,
-          url,
-          title: initialAddBookmark.title?.trim() || url,
-          description: null,
-          sort_order: maxOrder,
-        })
-        .select('id')
-        .single();
-      if (insertError || !inserted) {
-        setToast({ message: t.quickCaptureFailed, type: 'error' });
-        return;
-      }
-      await refetchCategories();
-      const savedTitle = initialAddBookmark.title?.trim() || url;
-      setToast({
-        message: t.quickCaptureSaved.replace('{title}', savedTitle),
-        type: 'success',
-        actionLabel: t.quickCaptureUndo,
-        duration: 6000,
-        onAction: async () => {
-          await supabase.from('bookmarks').delete().eq('id', inserted.id);
-          await refetchCategories();
-        },
-      });
-    })();
   }, [
     initialAddBookmark,
     boards.length,
@@ -497,6 +450,15 @@ export default function Dashboard({
     boardsLoading,
     user?.id,
   ]);
+
+  useEffect(() => {
+    if (!initialAddBookmark) return;
+    if (!boardModalOpen) return;
+    if (boards.length === 0) return;
+    if (!initialAddPromptedBoardRef.current) return;
+    setBoardModalOpen(false);
+    initialAddPromptedBoardRef.current = false;
+  }, [initialAddBookmark, boardModalOpen, boards.length]);
 
   useEffect(() => {
     if (initialOpenAuthenticator) setAuthenticatorModalOpen(true);
@@ -600,9 +562,11 @@ export default function Dashboard({
         return;
       }
       const normalizedUrl = tab.url.trim();
-      const exists = categories.some((cat) => cat.bookmarks?.some((b) => b.url === normalizedUrl));
-      if (exists) {
-        setToast({ message: t.quickCaptureDuplicate, type: 'info' });
+      const duplicateCategory = categories.find((cat) => cat.bookmarks?.some((b) => b.url === normalizedUrl));
+      if (duplicateCategory) {
+        const boardName = selectedBoard?.name ?? t.searchGlobalBoards;
+        const msg = `${t.quickCaptureDuplicate} (${boardName} / ${duplicateCategory.name})`;
+        setToast({ message: msg, type: 'info' });
         return;
       }
       let targetCategoryId = categories[0]?.id ?? null;
