@@ -406,7 +406,9 @@ export default function Dashboard({
 
   useEffect(() => {
     if (!initialAddBookmark || initialAddHandledRef.current) return;
-    if (!uiRestored) return;
+    if (!user?.id) return;
+    if (!uiRestored || boardsLoading || categoriesLoading || columnsLoading) return;
+    if (boardModalOpen || categoryModalOpen || bookmarkModalOpen) return;
     const t = getT(settings.locale);
     if (boards.length === 0) {
       if (!initialAddPromptedBoardRef.current) {
@@ -416,7 +418,10 @@ export default function Dashboard({
       return;
     }
     if (!selectedBoardId) return;
-    if (categoriesLoading || columnsLoading) return;
+    if (!initialAddPromptedBoardRef.current) {
+      initialAddPromptedBoardRef.current = true;
+      return;
+    }
     initialAddHandledRef.current = true;
     initialAddPromptedBoardRef.current = false;
     (async () => {
@@ -489,6 +494,8 @@ export default function Dashboard({
     boardColumns,
     uiRestored,
     refetchCategories,
+    boardsLoading,
+    user?.id,
   ]);
 
   useEffect(() => {
