@@ -8,6 +8,9 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import EmailConfirmed from '../pages/EmailConfirmed';
 import Landing from '../pages/Landing';
+import PrivacyPolicy from '../pages/PrivacyPolicy';
+import TermsOfService from '../pages/TermsOfService';
+import Support from '../pages/Support';
 
 interface HomeRouteProps {
   initialAddBookmark: { url: string; title: string } | null;
@@ -76,6 +79,9 @@ export default function NewTabApp() {
   return (
     <SettingsProvider>
       <Routes>
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/support" element={<Support />} />
         <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/register" element={session ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/email-confirmed" element={<EmailConfirmed />} />
