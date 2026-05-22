@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "LinkHub Bookmark Manager",
   "description": "Trang quản lý bookmark khi mở tab mới — đồng bộ đám mây",
-  "version": "0.1.5",
-  "version_name": "0.1.5",
+  "version": "0.1.4",
+  "version_name": "0.1.4",
   "permissions": [
     "storage",
     "contextMenus",
