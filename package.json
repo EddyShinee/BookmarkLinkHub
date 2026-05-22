@@ -15,7 +15,7 @@
     "build:web": "vite build --config vite.config.web.ts",
     "preview": "vite preview",
     "preview:web": "vite preview --config vite.config.web.ts --port 4173",
-    "pack": "npm run build && cd dist && zip -r ../linkhub-chrome-store.zip . && cd .. && echo Done"
+    "pack": "npm run build && VERSION=$(node -p \"require('./package.json').version\") && cd dist && zip -r \"../linkhub-chrome-store-v$VERSION.zip\" . && cd .. && echo Done"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
