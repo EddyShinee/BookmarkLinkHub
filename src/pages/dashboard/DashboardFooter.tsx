@@ -27,6 +27,12 @@ export function DashboardFooter({
   const valueClass = `font-semibold tabular-nums ${isLight ? 'text-slate-900' : 'text-white'}`;
   const labelClass = 'text-text-muted font-normal';
   const globalLineClass = `inline-flex flex-wrap items-baseline gap-x-1 text-[11px] leading-snug sm:text-xs ${isLight ? 'text-slate-800' : 'text-white/90'}`;
+  const appVersion = React.useMemo(() => {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      return chrome.runtime.getManifest().version;
+    }
+    return import.meta.env.VITE_APP_VERSION ?? '';
+  }, []);
 
   return (
     <footer
@@ -62,6 +68,11 @@ export function DashboardFooter({
           <span className={valueClass}>{selectedBoardId ? linkCountOnBoard : '—'}</span>
           <span className={labelClass}>{t.dashboardFooterWordBookmarks}</span>
         </span>
+        {appVersion ? (
+          <span className={`font-mono text-[10px] ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+            v{appVersion}
+          </span>
+        ) : null}
       </div>
     </footer>
   );

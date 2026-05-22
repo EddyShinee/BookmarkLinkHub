@@ -27,6 +27,12 @@ export default function PopupApp() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [uiStateReady, setUiStateReady] = useState(false);
+  const appVersion = React.useMemo(() => {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      return chrome.runtime.getManifest().version;
+    }
+    return import.meta.env.VITE_APP_VERSION ?? '';
+  }, []);
 
   const openNewTab = useCallback((query?: string) => {
     const url = query
@@ -206,6 +212,14 @@ export default function PopupApp() {
           {activeTab === 'settings' && <PopupSettingsColumn />}
         </main>
       )}
+      <footer
+        className={`shrink-0 px-3 py-2 text-[10px] border-t flex items-center justify-between ${
+          isLight ? 'text-slate-400 border-slate-200' : 'text-[#64748b] border-white/5'
+        }`}
+      >
+        <span className="uppercase tracking-wider">LinkHub</span>
+        <span className="font-mono">{appVersion ? `v${appVersion}` : ''}</span>
+      </footer>
     </div>
   );
 }
