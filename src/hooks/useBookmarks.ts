@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { readUserDataSnapshot, writeUserDataSnapshot } from '../lib/userDataSnapshot';
 
 /** Matches schema: bookmarks (id, category_id, url, title, description, tags, sort_order) */
 export interface Bookmark {
@@ -42,18 +43,44 @@ export interface Board {
   categories?: Category[];
 }
 
-export function useBookmarks(userId: string | undefined) {
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+type CachePolicy = 'cache-first' | 'stale-while-revalidate';
 
-  const fetchBoards = useCallback(async () => {
+export function useBookmarks(
+  userId: string | undefined,
+  options?: { cachePolicy?: CachePolicy }
+) {
+  const [boards, setBoardsState] = useState<Board[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const cachePolicy = options?.cachePolicy ?? 'stale-while-revalidate';
+
+  const setBoards = useCallback(
+    (value: Board[] | ((prev: Board[]) => Board[])) => {
+      setBoardsState((prev) => {
+        const next = typeof value === 'function' ? (value as (prev: Board[]) => Board[])(prev) : value;
+        if (userIdRef.current) {
+          writeUserDataSnapshot(userIdRef.current, { boards: next });
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  const fetchBoards = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     if (!userId) {
-      setBoards([]);
+      setBoardsState([]);
       setLoading(false);
+      setHasLoaded(true);
       return;
     }
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const { data, error: e } = await supabase
@@ -62,18 +89,55 @@ export function useBookmarks(userId: string | undefined) {
         .eq('user_id', userId)
         .order('sort_order', { ascending: true });
       if (e) throw e;
-      setBoards((data ?? []) as Board[]);
+      if (userIdRef.current !== userId) return;
+      const nextBoards = (data ?? []) as Board[];
+      setBoards(nextBoards);
     } catch (e) {
+      if (userIdRef.current !== userId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
-      setBoards([]);
+      if (!silent) {
+        setBoardsState([]);
+      }
     } finally {
-      setLoading(false);
+      if (userIdRef.current === userId) {
+        if (!silent) {
+          setLoading(false);
+        }
+        setHasLoaded(true);
+      }
     }
   }, [userId]);
 
   useEffect(() => {
-    fetchBoards();
-  }, [fetchBoards]);
+    let cancelled = false;
+    setHasLoaded(false);
+    setError(null);
+    if (!userId) {
+      setBoardsState([]);
+      setLoading(false);
+      setHasLoaded(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setLoading(true);
+    (async () => {
+      const cached = await readUserDataSnapshot(userId);
+      if (cancelled) return;
+      const cachedBoards = cached?.boards as Board[] | undefined;
+      if (cachedBoards) {
+        setBoardsState(cachedBoards);
+        setLoading(false);
+        setHasLoaded(true);
+      }
+      if (!cachedBoards || cachePolicy === 'stale-while-revalidate') {
+        fetchBoards({ silent: !!cachedBoards });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchBoards, cachePolicy]);
 
-  return { boards, setBoards, loading, error, refetch: fetchBoards };
+  return { boards, setBoards, loading, error, hasLoaded, refetch: fetchBoards };
 }

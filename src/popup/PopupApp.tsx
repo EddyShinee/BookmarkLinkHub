@@ -5,9 +5,11 @@ import { useBookmarks } from '../hooks/useBookmarks';
 import { useCategories } from '../hooks/useCategories';
 import { useAuthenticatorEntries, type AuthenticatorEntry } from '../hooks/useAuthenticatorEntries';
 import { getT } from '../lib/i18n';
+import { readPopupSearchCache, writePopupSearchCache, type PopupSearchResult } from '../lib/popupSearchCache';
+import { readPopupUiState, writePopupUiState } from '../lib/popupUiState';
+import { getHostnameCached, getHostnameOrUrl } from '../lib/urlCache';
 import Toast from '../components/Toast';
 import { generateTOTP, getTimeRemaining } from '../lib/totp';
-import type { Bookmark } from '../hooks/useBookmarks';
 
 const NEWTAB_PATH = 'src/newtab/index.html';
 const TOTP_STEP = 30;
@@ -24,6 +26,7 @@ export default function PopupApp() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [uiStateReady, setUiStateReady] = useState(false);
 
   const openNewTab = useCallback((query?: string) => {
     const url = query
@@ -42,10 +45,35 @@ export default function PopupApp() {
     });
   }, [openNewTab]);
 
-  const openOptions = useCallback(() => {
-    // Legacy: open full-page options if needed
-    chrome.runtime.openOptionsPage?.();
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setUiStateReady(false);
+    (async () => {
+      const cached = await readPopupUiState(userId);
+      if (cancelled) return;
+      if (cached?.activeTab) {
+        setActiveTab((prev) => (prev === 'authenticator' ? cached.activeTab! : prev));
+      }
+      if (typeof cached?.searchOpen === 'boolean') {
+        setSearchOpen((prev) => (prev ? prev : cached.searchOpen!));
+      }
+      if (typeof cached?.searchQuery === 'string') {
+        setSearchQuery((prev) => (prev === '' ? cached.searchQuery! : prev));
+      }
+      if (typeof cached?.showSettings === 'boolean') {
+        setShowSettings((prev) => (prev ? prev : cached.showSettings!));
+      }
+      setUiStateReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!uiStateReady) return;
+    writePopupUiState(userId, { activeTab, showSettings, searchOpen, searchQuery });
+  }, [uiStateReady, userId, activeTab, showSettings, searchOpen, searchQuery]);
 
   if (authLoading) {
     const t = getT(settings.locale);
@@ -199,36 +227,106 @@ function PopupBookmarksTab({
   searchQuery: string;
   setSearchQuery: (v: string) => void;
 }) {
-  const { boards, loading } = useBookmarks(userId);
+  const { boards, loading, hasLoaded } = useBookmarks(userId, { cachePolicy: 'cache-first' });
   const [selectedBoardId, setSelectedBoardId] = React.useState<string | null>(null);
   const effectiveBoardId = selectedBoardId ?? boards[0]?.id ?? null;
-  const { categories, loading: catLoading } = useCategories(effectiveBoardId);
+  const { categories, loading: catLoading } = useCategories(effectiveBoardId, { cachePolicy: 'cache-first' });
+  const [cachedSearchResults, setCachedSearchResults] = React.useState<PopupSearchResult[] | null>(null);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
-  // Lấy board mở gần nhất từ chrome.storage.local (cùng key với Dashboard)
+  // Đọc nhanh board đã mở lần gần nhất để load cache sớm hơn.
   React.useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      setSelectedBoardId(null);
+      return;
+    }
+    let cancelled = false;
+    const applyStored = (stored?: string) => {
+      if (!stored || cancelled) return;
+      setSelectedBoardId((prev) => (prev ?? stored));
+    };
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         chrome.storage.local.get(['lastSelectedBoardId'], (result) => {
-          const stored = result.lastSelectedBoardId as string | undefined;
-          if (stored && boards.some((b) => b.id === stored)) {
-            setSelectedBoardId(stored);
-          } else if (boards[0]?.id) {
-            setSelectedBoardId(boards[0].id);
-          }
+          applyStored(result.lastSelectedBoardId as string | undefined);
         });
       } else if (typeof window !== 'undefined') {
-        const stored = window.localStorage.getItem('lastSelectedBoardId');
-        if (stored && boards.some((b) => b.id === stored)) {
-          setSelectedBoardId(stored);
-        } else if (boards[0]?.id) {
-          setSelectedBoardId(boards[0].id);
-        }
+        applyStored(window.localStorage.getItem('lastSelectedBoardId') ?? undefined);
       }
     } catch {
-      if (!selectedBoardId && boards[0]?.id) setSelectedBoardId(boards[0].id);
+      // ignore cache read errors
     }
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Sau khi có danh sách boards, đảm bảo selectedBoardId hợp lệ.
+  React.useEffect(() => {
+    if (!userId || boards.length === 0) return;
+    if (selectedBoardId && boards.some((b) => b.id === selectedBoardId)) return;
+    setSelectedBoardId(boards[0]?.id ?? null);
   }, [userId, boards, selectedBoardId]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!userId || !searchOpen || !normalizedQuery) {
+      setCachedSearchResults(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      const cached = await readPopupSearchCache(userId, normalizedQuery);
+      if (cancelled) return;
+      setCachedSearchResults(cached?.results ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, searchOpen, normalizedQuery]);
+
+  const allBookmarks = React.useMemo(
+    () =>
+      categories.flatMap((cat) =>
+        (cat.bookmarks ?? []).map((b) => ({
+          ...b,
+          categoryName: cat.name ?? '',
+        }))
+      ),
+    [categories]
+  );
+
+  const filteredBookmarks = React.useMemo(() => {
+    if (!normalizedQuery) return allBookmarks;
+    return allBookmarks.filter((b) => {
+      const title = (b.title ?? '').toLowerCase();
+      const url = (b.url ?? '').toLowerCase();
+      const host = getHostnameCached(b.url ?? '');
+      return (
+        title.includes(normalizedQuery) ||
+        url.includes(normalizedQuery) ||
+        host.includes(normalizedQuery)
+      );
+    });
+  }, [allBookmarks, normalizedQuery]);
+
+  const searchResults = React.useMemo<PopupSearchResult[]>(
+    () =>
+      filteredBookmarks.map((b) => ({
+        id: b.id,
+        title: b.title ?? '',
+        url: b.url,
+        categoryName: b.categoryName ?? '',
+      })),
+    [filteredBookmarks]
+  );
+
+  React.useEffect(() => {
+    if (!userId || !searchOpen || !normalizedQuery) return;
+    if (loading || catLoading || !hasLoaded) return;
+    writePopupSearchCache(userId, normalizedQuery, searchResults);
+  }, [userId, searchOpen, normalizedQuery, loading, catLoading, hasLoaded, searchResults]);
 
   if (!userId) {
     return (
@@ -245,32 +343,13 @@ function PopupBookmarksTab({
     );
   }
 
-  const allBookmarks: Array<Bookmark & { categoryName: string }> = categories.flatMap((cat) =>
-    (cat.bookmarks ?? []).map((b) => ({
-      ...b,
-      categoryName: cat.name ?? '',
-    }))
-  );
-
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredBookmarks = !normalizedQuery
-    ? allBookmarks
-    : allBookmarks.filter((b) => {
-        const title = (b.title ?? '').toLowerCase();
-        const url = (b.url ?? '').toLowerCase();
-        const host = (() => {
-          try {
-            return new URL(b.url).hostname.toLowerCase();
-          } catch {
-            return '';
-          }
-        })();
-        return (
-          title.includes(normalizedQuery) ||
-          url.includes(normalizedQuery) ||
-          host.includes(normalizedQuery)
-        );
-      });
+  const isLoading = loading || catLoading || !hasLoaded;
+  const canUseCachedSearch = searchOpen && !!normalizedQuery && cachedSearchResults !== null;
+  const resultsToRender = searchOpen
+    ? isLoading && canUseCachedSearch
+      ? cachedSearchResults ?? []
+      : searchResults
+    : [];
 
   return (
     <div className="space-y-2">
@@ -318,16 +397,14 @@ function PopupBookmarksTab({
         </div>
       )}
 
-      {loading || catLoading ? (
+      {isLoading && !canUseCachedSearch ? (
         <p className="text-[#90a4cb] text-sm py-4">{t.popupLoading}</p>
-      ) : categories.length === 0 ? (
-        <p className="text-[#90a4cb] text-sm py-4">{t.popupNoCategories}</p>
       ) : searchOpen ? (
         <div className="space-y-1.5 px-1 pb-2">
-          {filteredBookmarks.length === 0 ? (
+          {resultsToRender.length === 0 ? (
             <p className="text-[#64748b] text-xs py-3 text-center">{t.moveBookmarkNoResults}</p>
           ) : (
-            filteredBookmarks.map((b) => (
+            resultsToRender.map((b) => (
               <button
                 key={b.id}
                 type="button"
@@ -341,13 +418,7 @@ function PopupBookmarksTab({
                     {b.title || 'Untitled'}
                   </span>
                   <span className="text-[#90a4cb] text-[11px] truncate block">
-                    {(() => {
-                      try {
-                        return new URL(b.url).hostname;
-                      } catch {
-                        return b.url;
-                      }
-                    })()}
+                    {getHostnameOrUrl(b.url)}
                   </span>
                 </div>
                 <span className="text-[10px] text-[#64748b] uppercase tracking-wide truncate max-w-[80px]">
@@ -357,6 +428,8 @@ function PopupBookmarksTab({
             ))
           )}
         </div>
+      ) : categories.length === 0 ? (
+        <p className="text-[#90a4cb] text-sm py-4">{t.popupNoCategories}</p>
       ) : (
         <div className="space-y-4">
           {categories.map((cat) => (
@@ -388,7 +461,7 @@ function PopupBookmarksTab({
                           {b.title || 'Untitled'}
                         </span>
                         <span className="text-[#90a4cb] text-[11px] truncate block">
-                          {new URL(b.url).hostname}
+                          {getHostnameOrUrl(b.url)}
                         </span>
                       </div>
                       <span className="material-symbols-outlined text-[18px] text-gray-500 group-hover:text-[#256af4]">
@@ -669,7 +742,7 @@ function PopupAuthenticatorTab({
   openNewTab: (q?: string) => void;
   t: ReturnType<typeof getT>;
 }) {
-  const { entries, loading } = useAuthenticatorEntries(userId);
+  const { entries, loading, hasLoaded } = useAuthenticatorEntries(userId, { cachePolicy: 'cache-first' });
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((n) => n + 1), 1000);
@@ -691,7 +764,7 @@ function PopupAuthenticatorTab({
     );
   }
 
-  if (loading) {
+  if (loading || !hasLoaded) {
     return <p className="text-[#90a4cb] text-sm py-6 px-3">{t.popupLoading}</p>;
   }
 

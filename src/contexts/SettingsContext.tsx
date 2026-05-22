@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   SETTINGS_STORAGE_KEY,
   DEFAULT_SETTINGS,
@@ -13,6 +13,8 @@ import {
 } from '../lib/settings';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { supabase } from '../lib/supabaseClient';
+import { prefetchImage } from '../lib/imageCache';
+import { readSettingsSnapshot, writeSettingsSnapshot } from '../lib/settingsSnapshot';
 
 interface SettingsContextValue extends AppSettings {
   setLocale: (v: Locale) => void;
@@ -50,8 +52,11 @@ interface SettingsContextValue extends AppSettings {
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [loaded, setLoaded] = useState(false);
+  const cachedSettings = useMemo(() => readSettingsSnapshot(), []);
+  const [settings, setSettings] = useState<AppSettings>(() =>
+    cachedSettings ? { ...DEFAULT_SETTINGS, ...cachedSettings } : DEFAULT_SETTINGS
+  );
+  const [loaded, setLoaded] = useState(!!cachedSettings);
 
   useEffect(() => {
     (async () => {
@@ -65,7 +70,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (stored && typeof stored === 'object') {
-        setSettings({ ...DEFAULT_SETTINGS, ...stored });
+        const next = { ...DEFAULT_SETTINGS, ...stored };
+        setSettings(next);
+        writeSettingsSnapshot(next);
       }
       setLoaded(true);
     })();
@@ -109,6 +116,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setSettings((prev) => {
           const next = { ...prev, ...serverPatch };
           chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+          writeSettingsSnapshot(next);
           return next;
         });
       } catch {
@@ -126,6 +134,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const persist = useCallback((next: AppSettings) => {
     chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+    writeSettingsSnapshot(next);
 
     // Đồng bộ lên Supabase (nếu user đã đăng nhập)
     (async () => {
@@ -195,6 +204,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setAutoBackgroundEveningQuery: (v) => update({ autoBackgroundEveningQuery: v }),
     persist: () => persist(settings),
   };
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (settings.backgroundImageUrl) {
+      prefetchImage(settings.backgroundImageUrl);
+    }
+    if (settings.landingBackgroundImageUrl) {
+      prefetchImage(settings.landingBackgroundImageUrl);
+    }
+  }, [loaded, settings.backgroundImageUrl, settings.landingBackgroundImageUrl]);
 
   if (!loaded) return null;
 

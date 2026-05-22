@@ -36,6 +36,7 @@ import type { CategorySortOrder } from '../lib/settings';
 import { supabase } from '../lib/supabaseClient';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { openLink } from '../lib/openLink';
+import { prefetchImage } from '../lib/imageCache';
 import {
   normalizeSearchString,
   parseSpotlightQuery,
@@ -1484,6 +1485,12 @@ export default function Dashboard({
 
   const dashboardBackgroundImageUrl =
     (unsplashEnabled && unsplashImageUrl) || settings.backgroundImageUrl || null;
+
+  useEffect(() => {
+    if (dashboardBackgroundImageUrl) {
+      prefetchImage(dashboardBackgroundImageUrl);
+    }
+  }, [dashboardBackgroundImageUrl]);
 
   const tDash = getT(settings.locale);
   const dashboardBookmarkTotal = globalBookmarkCount;

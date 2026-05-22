@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { readUserDataSnapshot, writeUserDataSnapshot } from '../lib/userDataSnapshot';
 
 export interface AuthenticatorEntry {
   id: string;
@@ -12,18 +13,31 @@ export interface AuthenticatorEntry {
   updated_at: string;
 }
 
-export function useAuthenticatorEntries(userId: string | undefined) {
+type CachePolicy = 'cache-first' | 'stale-while-revalidate';
+
+export function useAuthenticatorEntries(
+  userId: string | undefined,
+  options?: { cachePolicy?: CachePolicy }
+) {
   const [entries, setEntries] = useState<AuthenticatorEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const cachePolicy = options?.cachePolicy ?? 'stale-while-revalidate';
 
-  const fetchEntries = useCallback(async () => {
+  const fetchEntries = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     if (!userId) {
       setEntries([]);
       setLoading(false);
+      setHasLoaded(true);
       return;
     }
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const { data, error: e } = await supabase
@@ -32,18 +46,56 @@ export function useAuthenticatorEntries(userId: string | undefined) {
         .eq('user_id', userId)
         .order('sort_order', { ascending: true });
       if (e) throw e;
-      setEntries((data ?? []) as AuthenticatorEntry[]);
+      if (userIdRef.current !== userId) return;
+      const nextEntries = (data ?? []) as AuthenticatorEntry[];
+      setEntries(nextEntries);
+      writeUserDataSnapshot(userId, { authenticatorEntries: nextEntries });
     } catch (e) {
+      if (userIdRef.current !== userId) return;
       setError(e instanceof Error ? e : new Error(String(e)));
-      setEntries([]);
+      if (!silent) {
+        setEntries([]);
+      }
     } finally {
-      setLoading(false);
+      if (userIdRef.current === userId) {
+        if (!silent) {
+          setLoading(false);
+        }
+        setHasLoaded(true);
+      }
     }
   }, [userId]);
 
   useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
+    let cancelled = false;
+    setHasLoaded(false);
+    setError(null);
+    if (!userId) {
+      setEntries([]);
+      setLoading(false);
+      setHasLoaded(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setLoading(true);
+    (async () => {
+      const cached = await readUserDataSnapshot(userId);
+      if (cancelled) return;
+      const cachedEntries = cached?.authenticatorEntries as AuthenticatorEntry[] | undefined;
+      if (cachedEntries) {
+        setEntries(cachedEntries);
+        setLoading(false);
+        setHasLoaded(true);
+      }
+      if (!cachedEntries || cachePolicy === 'stale-while-revalidate') {
+        fetchEntries({ silent: !!cachedEntries });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchEntries, cachePolicy]);
 
   const addEntry = useCallback(
     async (issuer: string, accountName: string, secret: string) => {
@@ -62,7 +114,11 @@ export function useAuthenticatorEntries(userId: string | undefined) {
         .select('*')
         .single();
       if (e) throw e;
-      setEntries((prev) => [...prev, data as AuthenticatorEntry].sort((a, b) => a.sort_order - b.sort_order));
+      setEntries((prev) => {
+        const next = [...prev, data as AuthenticatorEntry].sort((a, b) => a.sort_order - b.sort_order);
+        writeUserDataSnapshot(userId, { authenticatorEntries: next });
+        return next;
+      });
       return data as AuthenticatorEntry;
     },
     [userId, entries]
@@ -71,11 +127,20 @@ export function useAuthenticatorEntries(userId: string | undefined) {
   const deleteEntry = useCallback(async (id: string) => {
     const { error: e } = await supabase.from('authenticator_entries').delete().eq('id', id);
     if (e) throw e;
-    setEntries((prev) => prev.filter((x) => x.id !== id));
-  }, []);
+    setEntries((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      if (userId) {
+        writeUserDataSnapshot(userId, { authenticatorEntries: next });
+      }
+      return next;
+    });
+  }, [userId]);
 
   const updateOrder = useCallback(async (ordered: AuthenticatorEntry[]) => {
     setEntries(ordered);
+    if (userId) {
+      writeUserDataSnapshot(userId, { authenticatorEntries: ordered });
+    }
     const now = new Date().toISOString();
     for (let i = 0; i < ordered.length; i++) {
       const { error } = await supabase
@@ -87,7 +152,7 @@ export function useAuthenticatorEntries(userId: string | undefined) {
         return;
       }
     }
-  }, [fetchEntries]);
+  }, [fetchEntries, userId]);
 
-  return { entries, setEntries, loading, error, refetch: fetchEntries, addEntry, deleteEntry, updateOrder };
+  return { entries, setEntries, loading, error, hasLoaded, refetch: fetchEntries, addEntry, deleteEntry, updateOrder };
 }

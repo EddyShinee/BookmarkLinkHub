@@ -4,13 +4,18 @@ import { supabase } from '../lib/supabaseClient';
 import type { Category, Bookmark } from './useBookmarks';
 
 type CategoryWithBookmarks = Category & { bookmarks: Bookmark[] };
+type CachePolicy = 'cache-first' | 'stale-while-revalidate';
 
-export function useCategories(boardId: string | null) {
+export function useCategories(
+  boardId: string | null,
+  options?: { cachePolicy?: CachePolicy }
+) {
   const [categories, setCategoriesState] = useState<CategoryWithBookmarks[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const boardIdRef = useRef(boardId);
   boardIdRef.current = boardId;
+  const cachePolicy = options?.cachePolicy ?? 'stale-while-revalidate';
 
   const setCategories = useCallback(
     (value: CategoryWithBookmarks[] | ((prev: CategoryWithBookmarks[]) => CategoryWithBookmarks[])) => {
@@ -116,14 +121,14 @@ export function useCategories(boardId: string | null) {
         setLoading(false);
         hadCache = true;
       }
-      if (!cancelled) {
+      if (!cancelled && (!hadCache || cachePolicy === 'stale-while-revalidate')) {
         fetchCategories({ silent: hadCache });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [boardId, fetchCategories]);
+  }, [boardId, fetchCategories, cachePolicy]);
 
   return { categories, setCategories, loading, error, refetch: fetchCategories };
 }

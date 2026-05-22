@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabaseClient';
 import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { useUnsplashBackground } from '../hooks/useUnsplashBackground';
+import { prefetchImage } from '../lib/imageCache';
 import Toast, { type ToastType } from '../components/Toast';
 
 const DEFAULT_LANDING_BACKGROUND =
@@ -195,6 +196,12 @@ export default function Landing() {
     DEFAULT_LANDING_BACKGROUND;
   const hasImage = !!effectiveBackgroundImageUrl;
   const overlayOpacity = (settings.backgroundOverlayOpacity ?? 80) / 100;
+
+  useEffect(() => {
+    if (effectiveBackgroundImageUrl) {
+      prefetchImage(effectiveBackgroundImageUrl);
+    }
+  }, [effectiveBackgroundImageUrl]);
   const pomodoroProgress =
     pomodoroTotalSeconds > 0 ? pomodoroSeconds / pomodoroTotalSeconds : 0;
 
