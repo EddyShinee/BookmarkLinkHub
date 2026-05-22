@@ -78,22 +78,27 @@ export function MoveBookmarkModal({
   const hasResults = filtered.length > 0;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-sidebar border border-white/10 rounded-xl shadow-xl w-full max-w-[420px] max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-[#0b1220] border border-white/10 rounded-2xl shadow-[0_30px_80px_rgba(0,0,0,0.55)] w-full max-w-[520px] max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex-shrink-0 px-3 pt-2.5 pb-2 border-b border-white/10">
-          <h3 className="text-sm font-semibold text-white mb-0.5">
-            {t.moveBookmarkModalTitle}
-          </h3>
-          {bookmark && (
-            <p className="text-[11px] text-text-muted truncate mb-2">
-              {bookmark.title || bookmark.url}
-            </p>
-          )}
-          <div className="relative">
-            <span className="material-icons-round absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[13px] pointer-events-none">
+        <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center shadow-[0_0_16px_rgba(129,140,248,0.35)]">
+              <span className="material-symbols-outlined text-[20px]">drive_file_move</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-semibold text-white">{t.moveBookmarkModalTitle}</h3>
+              {bookmark && (
+                <p className="text-[11px] text-text-muted truncate mt-0.5">
+                  {bookmark.title || bookmark.url}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="relative mt-3">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[16px] pointer-events-none">
               search
             </span>
             <input
@@ -102,25 +107,26 @@ export function MoveBookmarkModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t.moveBookmarkSearchPlaceholder}
-              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder:text-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
+              className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-white/5 border border-white/10 text-white placeholder:text-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40"
             />
           </div>
         </div>
         <div className="scrollbar-none flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <div className="p-2 pb-2.5">
+          <div className="p-3 space-y-3">
             {loading ? (
-              <p className="text-[11px] text-text-muted py-4 text-center">{t.loadingAuth}</p>
+              <p className="text-[11px] text-text-muted py-6 text-center">{t.loadingAuth}</p>
             ) : !hasResults ? (
-              <p className="text-[11px] text-text-muted py-4 text-center">{t.moveBookmarkNoResults}</p>
+              <p className="text-[11px] text-text-muted py-6 text-center">{t.moveBookmarkNoResults}</p>
             ) : (
               filtered.map(({ board, categories: cats }) => (
-                <div key={board.id} className="mb-1.5 last:mb-0 rounded-lg border border-white/10 bg-white/5 p-1.5">
-                  <p className="text-sm font-bold text-white tracking-wide px-2 py-1.5 mb-1">
-                    {board.name}
-                  </p>
-                  <div className="space-y-0.5">
+                <div key={board.id} className="rounded-xl border border-white/10 bg-white/[0.04] overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+                    <span className="material-symbols-outlined text-[16px] text-[#256af4]">folder</span>
+                    <p className="text-sm font-semibold text-white truncate">{board.name}</p>
+                  </div>
+                  <div className="p-2 space-y-1">
                     {cats.length === 0 && (
-                      <p className="px-2 py-1.5 text-[11px] text-text-muted">{t.moveBookmarkNoCategory}</p>
+                      <p className="px-2 py-2 text-[11px] text-text-muted">{t.moveBookmarkNoCategory}</p>
                     )}
                     {cats.map((cat) => {
                       const isCurrent = bookmark?.category_id === cat.id;
@@ -130,16 +136,20 @@ export function MoveBookmarkModal({
                           type="button"
                           disabled={isCurrent}
                           onClick={() => { onMove(cat.id, board.id); onClose(); }}
-                          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs transition ${
+                          className={`group flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-xs transition border ${
                             isCurrent
-                              ? 'cursor-not-allowed bg-white/5 text-text-muted border border-white/10'
-                              : 'text-text-secondary hover:bg-white/10 hover:text-white border border-transparent'
+                              ? 'cursor-not-allowed border-accent/40 bg-accent/15 text-white'
+                              : 'border-transparent text-text-secondary hover:bg-white/10 hover:text-white hover:border-white/15'
                           }`}
                         >
-                          <span className="font-medium truncate flex-1 min-w-0 text-sm">{cat.name}</span>
-                          {isCurrent && (
-                            <span className="text-[10px] text-text-muted flex-shrink-0 px-1.5 py-0.5 rounded bg-white/5">
+                          <span className="flex-1 min-w-0 text-sm font-medium truncate">{cat.name}</span>
+                          {isCurrent ? (
+                            <span className="text-[10px] text-accent flex-shrink-0 px-2 py-0.5 rounded-full bg-accent/15 border border-accent/30">
                               {t.moveBookmarkCurrent}
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined text-[16px] text-white/30 group-hover:text-white/70">
+                              chevron_right
                             </span>
                           )}
                         </button>
@@ -151,8 +161,12 @@ export function MoveBookmarkModal({
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 p-2 border-t border-white/10">
-          <button type="button" onClick={onClose} className="w-full px-3 py-1.5 rounded-lg text-xs border border-white/10 text-text-secondary hover:bg-white/10">
+        <div className="flex-shrink-0 p-3 border-t border-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-3 py-2 rounded-xl text-xs border border-white/10 text-text-secondary hover:bg-white/10"
+          >
             {t.cancel}
           </button>
         </div>

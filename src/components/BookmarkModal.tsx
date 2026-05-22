@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Board, Category } from '../hooks/useBookmarks';
 import { supabase } from '../lib/supabaseClient';
 
@@ -37,38 +37,36 @@ export default function BookmarkModal({
   const [saving, setSaving] = useState(false);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const initializedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      const defaultCategories = allCategories.length ? allCategories : categories;
-      const editCategory = editBookmark
-        ? defaultCategories.find((c) => c.id === editBookmark.category_id) ?? categories.find((c) => c.id === editBookmark.category_id)
-        : undefined;
-      const resolvedBoardId =
-        editCategory?.board_id ??
-        (defaultBoardId ?? undefined) ??
-        categories[0]?.board_id ??
-        boards[0]?.id ??
-        '';
-      setUrl(editBookmark?.url ?? initialUrl);
-      setTitle(editBookmark?.title ?? initialTitle);
-      setDescription(editBookmark?.description ?? '');
-      setBoardId(resolvedBoardId);
-      setCategoryId(editBookmark?.category_id ?? defaultCategoryId ?? '');
-      setBoardSearch('');
-      setCategorySearch('');
+    if (!open) {
+      initializedRef.current = null;
+      return;
     }
-  }, [
-    open,
-    editBookmark,
-    initialUrl,
-    initialTitle,
-    defaultCategoryId,
-    defaultBoardId,
-    categories,
-    boards,
-    allCategories,
-  ]);
+    const initKey = editBookmark?.id ?? 'new';
+    if (initializedRef.current === initKey) return;
+    initializedRef.current = initKey;
+
+    const defaultCategories = allCategories.length ? allCategories : categories;
+    const editCategory = editBookmark
+      ? defaultCategories.find((c) => c.id === editBookmark.category_id) ??
+        categories.find((c) => c.id === editBookmark.category_id)
+      : undefined;
+    const resolvedBoardId =
+      editCategory?.board_id ??
+      (defaultBoardId ?? undefined) ??
+      categories[0]?.board_id ??
+      boards[0]?.id ??
+      '';
+    setUrl(editBookmark?.url ?? initialUrl);
+    setTitle(editBookmark?.title ?? initialTitle);
+    setDescription(editBookmark?.description ?? '');
+    setBoardId(resolvedBoardId);
+    setCategoryId(editBookmark?.category_id ?? defaultCategoryId ?? '');
+    setBoardSearch('');
+    setCategorySearch('');
+  }, [open, editBookmark?.id, initialUrl, initialTitle, defaultCategoryId, defaultBoardId, categories, boards, allCategories]);
 
   useEffect(() => {
     if (!open) return;
@@ -127,14 +125,17 @@ export default function BookmarkModal({
   useEffect(() => {
     if (!open) return;
     if (!boardId) return;
+    if (categoriesLoading) return;
     if (categoriesForBoard.length === 0) {
+      if (!categoryId) return;
       setCategoryId('');
       return;
     }
-    if (!categoriesForBoard.some((c) => c.id === categoryId)) {
+    if (categoryId && categoriesForBoard.some((c) => c.id === categoryId)) return;
+    if (categoriesForBoard.length > 0) {
       setCategoryId(categoriesForBoard[0].id);
     }
-  }, [open, boardId, categoriesForBoard, categoryId]);
+  }, [open, boardId, categoriesForBoard, categoryId, categoriesLoading]);
 
   useEffect(() => {
     if (!open) return;
