@@ -26,6 +26,7 @@ export interface CachedCategory {
   icon?: string | null;
   bg_opacity?: number | null;
   sort_order: number;
+  created_at?: string;
   bookmarks: CachedBookmark[];
 }
 

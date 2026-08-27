@@ -117,7 +117,7 @@ export function CategoryCard({
   return (
     <div
       data-category-menu
-      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group min-w-0 ring-1 ring-transparent transition-all duration-200 motion-reduce:transform-none hover:-translate-y-px hover:shadow-[0_14px_36px_rgba(0,0,0,0.32)] focus-within:shadow-[0_12px_32px_rgba(0,0,0,0.28)] ${cardChromeHover} ${
+      className={`relative glass-panel rounded-xl overflow-hidden shadow-glass group min-w-0 ring-1 ring-transparent transition-[box-shadow,transform] duration-200 motion-reduce:transform-none hover:-translate-y-px hover:shadow-[0_14px_36px_rgba(0,0,0,0.32)] focus-within:shadow-[0_12px_32px_rgba(0,0,0,0.28)] ${cardChromeHover} ${
         cardHeight === 'equal' ? 'min-h-[240px] flex flex-col' : ''
       } ${(dragDropCategory || sortableWrapper) && !dragHandleProps ? 'cursor-grab active:cursor-grabbing' : ''} ${
         isDraggingCategory ? 'opacity-40 scale-[0.98]' : ''
