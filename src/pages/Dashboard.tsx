@@ -50,6 +50,7 @@ import {
   DROP_INDICATOR_BLOCK_CLASS,
   FALLBACK_DOT_COLORS,
   categoryGridColsClass,
+  compareCategoryOrder,
 } from './dashboard/boardGrid';
 import { ColumnDroppable } from './dashboard/ColumnDroppable';
 import { CategoryGridSkeleton } from './dashboard/CategoryGridSkeleton';
@@ -88,12 +89,24 @@ export default function Dashboard({
   const selectedBoard = boards.find((b) => b.id === selectedBoardId) ?? null;
   const configuredColumns = selectedBoard?.category_columns ?? null;
   const expectedColumns = typeof configuredColumns === 'number' ? configuredColumns : undefined;
-  const { columns: boardColumns, loading: columnsLoading, refetch: refetchBoardColumns } = useBoardColumns(
+  const {
+    columns: boardColumns,
+    loading: columnsLoading,
+    refetch: refetchBoardColumns,
+    loadedBoardId: columnsLoadedBoardId,
+  } = useBoardColumns(
     selectedBoardId,
     expectedColumns
   );
   const numColumnsPreferred = configuredColumns ?? (boardColumns.length || settings.categoryColumns);
-  const { categories, setCategories, loading: categoriesLoading, refetch: refetchCategories } = useCategories(selectedBoardId);
+  const {
+    categories,
+    setCategories,
+    loading: categoriesLoading,
+    refetch: refetchCategories,
+    hasFetched: categoriesHasFetched,
+    loadedBoardId: categoriesLoadedBoardId,
+  } = useCategories(selectedBoardId);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uiRestored, setUiRestored] = useState(false);
@@ -742,7 +755,8 @@ export default function Dashboard({
   }, [selectedBoardId]);
 
   useEffect(() => {
-    if (!selectedBoardId || columnsLoading || categoriesLoading) return;
+    if (!selectedBoardId || columnsLoading || categoriesLoading || !categoriesHasFetched) return;
+    if (boardColumns.length < numColumnsPreferred) return;
     if (!boardColumns.length || !categories.length || assigningOrphansRef.current) return;
     if (boardColumns[0].board_id !== selectedBoardId) return;
     if (categories[0].board_id !== selectedBoardId) return;
@@ -752,22 +766,42 @@ export default function Dashboard({
     if (orphans.length === 0) return;
 
     assigningOrphansRef.current = true;
-    let cancelled = false;
-    (async () => {
-      const existing = categories.filter((c) => c.column_id === firstColId);
-      let nextOrder = existing.length === 0 ? 0 : Math.max(...existing.map((c) => c.sort_order), -1) + 1;
-      for (const cat of orphans) {
-        if (cancelled) break;
+    const existing = categories.filter((c) => c.column_id === firstColId);
+    let nextOrder = existing.length === 0 ? 0 : Math.max(...existing.map((c) => c.sort_order), -1) + 1;
+    const assigned = new Map<string, { column_id: string; sort_order: number }>();
+    for (const cat of orphans) {
+      assigned.set(cat.id, { column_id: firstColId, sort_order: nextOrder++ });
+    }
+    setCategories((prev) =>
+      prev.map((c) => {
+        const u = assigned.get(c.id);
+        return u ? { ...c, column_id: u.column_id, sort_order: u.sort_order } : c;
+      })
+    );
+
+    const persistOrphans = orphans;
+    void (async () => {
+      const now = new Date().toISOString();
+      for (const cat of persistOrphans) {
+        const u = assigned.get(cat.id);
+        if (!u) continue;
         await supabase
           .from('categories')
-          .update({ column_id: firstColId, sort_order: nextOrder++, updated_at: new Date().toISOString() })
+          .update({ column_id: u.column_id, sort_order: u.sort_order, updated_at: now })
           .eq('id', cat.id);
       }
-      if (!cancelled) await refetchCategories();
       assigningOrphansRef.current = false;
     })();
-    return () => { cancelled = true; };
-  }, [selectedBoardId, boardColumns, categories, columnsLoading, categoriesLoading, refetchCategories]);
+  }, [
+    selectedBoardId,
+    boardColumns,
+    categories,
+    columnsLoading,
+    categoriesLoading,
+    categoriesHasFetched,
+    numColumnsPreferred,
+    setCategories,
+  ]);
 
   // Group categories by column; always order by sort_order so drag order is stable on refresh
   const categoriesByColumn = useMemo(() => {
@@ -785,11 +819,7 @@ export default function Dashboard({
       }
     }
     for (const [, list] of map) {
-      list.sort((a, b) => {
-        const d = a.sort_order - b.sort_order;
-        if (d !== 0) return d;
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      });
+      list.sort(compareCategoryOrder);
     }
     return map;
   }, [boardColumns, categories]);
@@ -1507,10 +1537,13 @@ export default function Dashboard({
     [selectedBoardId, categories]
   );
 
+  const categoriesReady = !!selectedBoardId && categoriesLoadedBoardId === selectedBoardId;
+  const columnsReady = !!selectedBoardId && columnsLoadedBoardId === selectedBoardId;
+  const columnsCountReady = columnsReady && boardColumns.length >= numColumnsPreferred;
   const showCategoryGridSkeleton =
     !!selectedBoardId &&
     !searchTerm.trim() &&
-    ((categoriesLoading && categories.length === 0) || (columnsLoading && boardColumns.length === 0));
+    !(categoriesReady && columnsCountReady);
 
   const isLightContent = settings.theme === 'light';
   const globalSearchListBtnClass = isLightContent
@@ -1752,7 +1785,9 @@ export default function Dashboard({
           )}
           {!searchTerm && (
             <>
-              {selectedBoardId && categories.length === 0 && !categoriesLoading && !columnsLoading && (
+              {selectedBoardId &&
+                categories.length === 0 &&
+                !showCategoryGridSkeleton && (
                 <div className={emptyCategoriesCardClass}>
                   <span className="material-symbols-outlined text-[40px] text-accent/80 mb-3 block" aria-hidden>
                     folder_special

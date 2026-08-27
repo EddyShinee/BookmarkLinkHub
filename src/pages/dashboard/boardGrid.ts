@@ -20,3 +20,16 @@ export function categoryGridColsClass(n: number): string {
   if (n === 6) return 'category-grid-cols-6';
   return 'category-grid-cols-4';
 }
+
+/** Stable category order: sort_order, then created_at if present, then id. */
+export function compareCategoryOrder(
+  a: { id: string; sort_order: number; created_at?: string },
+  b: { id: string; sort_order: number; created_at?: string }
+): number {
+  const d = a.sort_order - b.sort_order;
+  if (d !== 0) return d;
+  const at = a.created_at ? Date.parse(a.created_at) : NaN;
+  const bt = b.created_at ? Date.parse(b.created_at) : NaN;
+  if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) return at - bt;
+  return a.id.localeCompare(b.id);
+}

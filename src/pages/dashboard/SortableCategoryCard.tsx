@@ -1,9 +1,16 @@
 import React from 'react';
-import { useSortable } from '@dnd-kit/sortable';
+import { defaultAnimateLayoutChanges, useSortable, type AnimateLayoutChanges } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Bookmark, Category } from '../../hooks/useBookmarks';
 import { DROP_INDICATOR_CLASS } from './boardGrid';
 import { CategoryCard } from './CategoryCard';
+
+const animateLayoutChanges: AnimateLayoutChanges = (args) => {
+  if (args.isSorting || args.wasDragging) {
+    return defaultAnimateLayoutChanges(args);
+  }
+  return false;
+};
 
 export function SortableCategoryCard({
   category,
@@ -62,6 +69,7 @@ export function SortableCategoryCard({
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id,
+    animateLayoutChanges,
     transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
     disabled,
   });
