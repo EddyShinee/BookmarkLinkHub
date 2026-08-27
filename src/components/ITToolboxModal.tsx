@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { useSettings } from '../contexts/SettingsContext';
 import { generatePassword, generateUuids, hashText } from '../lib/cryptoUtils';
+import { chromeStorageAdapter } from '../lib/chromeStorageAdapter';
 import { getT } from '../lib/i18n';
 import {
   REGEX_CHEATSHEET_IDS,
@@ -11,82 +12,40 @@ import {
   runRegex,
   sanitizeRegexFlags,
 } from '../lib/regexUtils';
+import { HtmlTab } from './it-toolbox/HtmlTab';
+import { JsonTreeTab } from './it-toolbox/JsonTreeTab';
+import { TimestampTab } from './it-toolbox/TimestampTab';
+import { ActionBtn, CopyButton, Label, TextArea, ToolboxInput, useToolboxChrome } from './it-toolbox/ui';
 
-type TabId = 'json' | 'jwt' | 'url' | 'base64' | 'regex' | 'qr-gen' | 'crypto-gen';
+export type TabId =
+  | 'json'
+  | 'json-tree'
+  | 'jwt'
+  | 'url'
+  | 'base64'
+  | 'html'
+  | 'regex'
+  | 'qr-gen'
+  | 'crypto-gen'
+  | 'timestamp';
+
+const LAST_TAB_KEY = 'it_toolbox_last_tab';
+const ALL_TABS: TabId[] = [
+  'jwt',
+  'json',
+  'json-tree',
+  'url',
+  'base64',
+  'html',
+  'regex',
+  'timestamp',
+  'qr-gen',
+  'crypto-gen',
+];
 
 interface ITToolboxModalProps {
   open: boolean;
   onClose: () => void;
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="block text-[10px] font-semibold uppercase text-text-muted tracking-wider mb-1">
-      {children}
-    </label>
-  );
-}
-
-function TextArea({
-  value,
-  onChange,
-  placeholder,
-  rows = 4,
-  className = '',
-  error,
-  readOnly,
-}: {
-  value: string;
-  onChange?: (v: string) => void;
-  placeholder?: string;
-  rows?: number;
-  className?: string;
-  error?: boolean;
-  readOnly?: boolean;
-}) {
-  return (
-    <textarea
-      value={value}
-      onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-      readOnly={readOnly}
-      placeholder={placeholder}
-      rows={rows}
-      className={`w-full px-3 py-2 rounded-lg border bg-white/5 text-xs text-white placeholder-text-muted focus:ring-2 focus:ring-accent/40 focus:border-accent/40 resize-y font-mono ${
-        error ? 'border-red-500/60' : 'border-white/10'
-      } ${className}`}
-    />
-  );
-}
-
-const BTN_VARIANTS = {
-  primary: 'bg-accent/20 border-accent/50 text-accent hover:bg-accent/30 hover:text-white',
-  success: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 hover:text-white',
-  warning: 'bg-amber-500/20 border-amber-500/50 text-amber-400 hover:bg-amber-500/30 hover:text-white',
-  info: 'bg-sky-500/20 border-sky-500/50 text-sky-400 hover:bg-sky-500/30 hover:text-white',
-  neutral: 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10 hover:text-white',
-} as const;
-
-function ActionBtn({
-  onClick,
-  children,
-  disabled,
-  variant = 'neutral',
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-  disabled?: boolean;
-  variant?: keyof typeof BTN_VARIANTS;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-[8.5rem] flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium border disabled:opacity-50 transition ${BTN_VARIANTS[variant]}`}
-    >
-      {children}
-    </button>
-  );
 }
 
 // ——— JSON ———
@@ -142,7 +101,7 @@ function JsonTab({ t }: { t: ReturnType<typeof getT> }) {
       </div>
       <div className="flex flex-col min-h-0 flex-1">
         <Label>{t.itToolboxResult}</Label>
-        <TextArea value={output} onChange={undefined} placeholder={t.itToolboxResultPlaceholder} readOnly rows={14} className="flex-1 min-h-[140px]" />
+        <TextArea value={output} onChange={undefined} placeholder={t.itToolboxResultPlaceholder} readOnly copyable rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
@@ -404,7 +363,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
             onClick={() => setMode('decode')}
             className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border ${
               mode === 'decode'
-                ? 'bg-violet-500/20 border-violet-400 text-violet-200'
+                ? 'bg-violet-500/20 border-violet-400 text-violet-500'
                 : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
             }`}
           >
@@ -415,7 +374,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
             onClick={() => setMode('encode')}
             className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border ${
               mode === 'encode'
-                ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                ? 'bg-amber-500/20 border-amber-400 text-amber-500'
                 : 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10'
             }`}
           >
@@ -427,12 +386,11 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
           <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3.5 space-y-2.5 flex-shrink-0">
             <Label>JWT</Label>
             <TextArea value={input} onChange={setInput} placeholder={t.itToolboxJwtPaste} rows={6} />
-            <input
+            <ToolboxInput
               type="text"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               placeholder="Secret (verify)"
-              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
             />
             {signatureValid !== null && (
               <p className={`text-[11px] ${signatureValid ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -453,12 +411,11 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
               placeholder='{"sub":"user123","exp":9999999999}'
               rows={8}
             />
-            <input
+            <ToolboxInput
               type="text"
               value={encodeSecret}
               onChange={(e) => setEncodeSecret(e.target.value)}
               placeholder="Secret"
-              className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-xs text-white placeholder-text-muted"
             />
             {jwtError && <p className="text-[11px] text-red-400">{jwtError}</p>}
           </div>
@@ -470,7 +427,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
           <>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0">
               <Label>Header</Label>
-              <TextArea value={headerOut} onChange={undefined} readOnly rows={3} className="min-h-[64px]" />
+              <TextArea value={headerOut} onChange={undefined} readOnly copyable rows={3} className="min-h-[64px]" />
             </div>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3.5 flex flex-col min-h-0 flex-1">
               <Label>Payload</Label>
@@ -488,6 +445,7 @@ function JwtTab({ t }: { t: ReturnType<typeof getT> }) {
               value={encodedJwt}
               onChange={undefined}
               readOnly
+              copyable
               rows={12}
               placeholder={t.itToolboxJwtEncodedPlaceholder}
               className="min-h-[160px] flex-1"
@@ -538,7 +496,7 @@ function UrlTab({ t }: { t: ReturnType<typeof getT> }) {
       </div>
       <div className="flex flex-col min-h-0 flex-1">
         <Label>{t.itToolboxResult}</Label>
-        <TextArea value={output} onChange={undefined} readOnly placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
+        <TextArea value={output} onChange={undefined} readOnly copyable placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
@@ -583,7 +541,7 @@ function Base64Tab({ t }: { t: ReturnType<typeof getT> }) {
       </div>
       <div className="flex flex-col min-h-0 flex-1">
         <Label>{t.itToolboxResult}</Label>
-        <TextArea value={output} onChange={undefined} readOnly placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
+        <TextArea value={output} onChange={undefined} readOnly copyable placeholder={t.itToolboxResult} rows={14} className="flex-1 min-h-[140px]" />
       </div>
     </div>
   );
@@ -606,14 +564,13 @@ function FlagChip({
   active: boolean;
   onClick: () => void;
 }) {
+  const { chipIdle } = useToolboxChrome();
   return (
     <button
       type="button"
       onClick={onClick}
       className={`px-2 py-1 rounded-md text-[11px] font-mono border transition ${
-        active
-          ? 'bg-accent/25 border-accent/50 text-accent'
-          : 'bg-white/5 border-white/10 text-text-muted hover:text-white'
+        active ? 'bg-accent/25 border-accent/50 text-accent' : chipIdle
       }`}
     >
       {label}
@@ -964,23 +921,18 @@ function QrGenTab({ t }: { t: ReturnType<typeof getT> }) {
 function HashRow({
   label,
   value,
-  copyLabel,
-  onCopy,
 }: {
   label: string;
   value: string;
-  copyLabel: string;
-  onCopy: () => void;
 }) {
+  const { mutedClass, codeClass } = useToolboxChrome();
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase text-text-muted tracking-wider">{label}</span>
-        <button type="button" onClick={onCopy} className="text-[10px] text-accent hover:underline shrink-0">
-          {copyLabel}
-        </button>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider ${mutedClass}`}>{label}</span>
+        <CopyButton text={value} />
       </div>
-      <code className="text-[11px] font-mono break-all rounded border border-white/10 bg-black/20 px-2 py-1.5 text-white/85">
+      <code className={`text-[11px] font-mono break-all rounded border px-2 py-1.5 ${codeClass}`}>
         {value || '—'}
       </code>
     </div>
@@ -989,6 +941,7 @@ function HashRow({
 
 // ——— Hash / UUID / Password Tab ———
 function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
+  const { panelClass, headingClass, codeClass } = useToolboxChrome();
   const [hashInput, setHashInput] = useState('');
   const [hashes, setHashes] = useState<{ md5: string; sha1: string; sha256: string; sha512: string } | null>(null);
   const [uuidBlock, setUuidBlock] = useState('');
@@ -1045,21 +998,21 @@ function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
         <p className={`text-[11px] ${flash === t.itToolboxCopyFailed ? 'text-red-400' : 'text-emerald-400'}`}>{flash}</p>
       )}
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoHashInput}</h3>
+      <section className={`rounded-xl border p-4 space-y-3 ${panelClass}`}>
+        <h3 className={`text-xs font-semibold ${headingClass}`}>{t.itToolboxCryptoHashInput}</h3>
         <TextArea value={hashInput} onChange={setHashInput} rows={4} placeholder="" />
         {hashes && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <HashRow label={t.itToolboxCryptoMd5} value={hashes.md5} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.md5)} />
-            <HashRow label={t.itToolboxCryptoSha1} value={hashes.sha1} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha1)} />
-            <HashRow label={t.itToolboxCryptoSha256} value={hashes.sha256} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha256)} />
-            <HashRow label={t.itToolboxCryptoSha512} value={hashes.sha512} copyLabel={t.itToolboxCopy} onCopy={() => copyText(hashes.sha512)} />
+            <HashRow label={t.itToolboxCryptoMd5} value={hashes.md5} />
+            <HashRow label={t.itToolboxCryptoSha1} value={hashes.sha1} />
+            <HashRow label={t.itToolboxCryptoSha256} value={hashes.sha256} />
+            <HashRow label={t.itToolboxCryptoSha512} value={hashes.sha512} />
           </div>
         )}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoUuidTitle}</h3>
+      <section className={`rounded-xl border p-4 space-y-3 ${panelClass}`}>
+        <h3 className={`text-xs font-semibold ${headingClass}`}>{t.itToolboxCryptoUuidTitle}</h3>
         <div className="flex flex-wrap gap-2">
           <ActionBtn onClick={() => genUuids(1)} variant="primary">
             {t.itToolboxCryptoGenOne}
@@ -1074,11 +1027,11 @@ function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
             {t.itToolboxCopy}
           </ActionBtn>
         </div>
-        <TextArea value={uuidBlock} onChange={setUuidBlock} readOnly rows={6} placeholder="UUID…" />
+        <TextArea value={uuidBlock} onChange={setUuidBlock} readOnly copyable rows={6} placeholder="UUID…" />
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-white">{t.itToolboxCryptoPasswordTitle}</h3>
+      <section className={`rounded-xl border p-4 space-y-3 ${panelClass}`}>
+        <h3 className={`text-xs font-semibold ${headingClass}`}>{t.itToolboxCryptoPasswordTitle}</h3>
         <div className="flex flex-col gap-2">
           <Label>{t.itToolboxCryptoPasswordLength}: {pwdLen}</Label>
           <input
@@ -1108,7 +1061,7 @@ function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
             </label>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            <code className="flex-1 min-w-0 text-xs font-mono break-all rounded border border-white/10 bg-black/20 px-2 py-2 text-white/90">
+            <code className={`flex-1 min-w-0 text-xs font-mono break-all rounded border px-2 py-2 ${codeClass}`}>
               {password}
             </code>
             <ActionBtn
@@ -1138,16 +1091,31 @@ function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
 }
 
 const TAB_STYLES: Record<TabId, { active: string; icon: string }> = {
-  jwt: { active: 'border-violet-500 text-violet-400 bg-violet-500/10', icon: 'token' },
-  json: { active: 'border-accent text-accent bg-accent/10', icon: 'data_object' },
-  url: { active: 'border-emerald-500 text-emerald-400 bg-emerald-500/10', icon: 'link' },
-  base64: { active: 'border-amber-500 text-amber-400 bg-amber-500/10', icon: 'code' },
-  regex: { active: 'border-rose-500 text-rose-400 bg-rose-500/10', icon: 'pattern' },
-  'qr-gen': { active: 'border-cyan-500 text-cyan-400 bg-cyan-500/10', icon: 'qr_code_2' },
-  'crypto-gen': { active: 'border-slate-400 text-slate-300 bg-slate-500/10', icon: 'tag' },
+  jwt: { active: 'text-violet-500 bg-violet-500/10', icon: 'token' },
+  json: { active: 'text-accent bg-accent/10', icon: 'data_object' },
+  'json-tree': { active: 'text-indigo-500 bg-indigo-500/10', icon: 'account_tree' },
+  url: { active: 'text-emerald-500 bg-emerald-500/10', icon: 'link' },
+  base64: { active: 'text-amber-500 bg-amber-500/10', icon: 'code' },
+  html: { active: 'text-orange-500 bg-orange-500/10', icon: 'html' },
+  regex: { active: 'text-rose-500 bg-rose-500/10', icon: 'pattern' },
+  timestamp: { active: 'text-teal-500 bg-teal-500/10', icon: 'schedule' },
+  'qr-gen': { active: 'text-cyan-500 bg-cyan-500/10', icon: 'qr_code_2' },
+  'crypto-gen': { active: 'text-slate-500 bg-slate-500/10', icon: 'tag' },
 };
 
-const TAB_ORDER: TabId[] = ['jwt', 'json', 'url', 'base64', 'regex', 'qr-gen', 'crypto-gen'];
+type NavGroupId = 'convert' | 'inspect' | 'generate';
+
+const NAV_GROUPS: { id: NavGroupId; items: TabId[] }[] = [
+  { id: 'convert', items: ['jwt', 'json', 'json-tree', 'url', 'base64', 'html'] },
+  { id: 'inspect', items: ['regex', 'timestamp'] },
+  { id: 'generate', items: ['qr-gen', 'crypto-gen'] },
+];
+
+function groupLabel(id: NavGroupId, tr: ReturnType<typeof getT>): string {
+  if (id === 'convert') return tr.itToolboxGroupConvert;
+  if (id === 'inspect') return tr.itToolboxGroupInspect;
+  return tr.itToolboxGroupGenerate;
+}
 
 function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
   switch (id) {
@@ -1155,12 +1123,18 @@ function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
       return 'JWT';
     case 'json':
       return 'JSON';
+    case 'json-tree':
+      return tr.itToolboxTabJsonTree;
     case 'url':
       return 'URL';
     case 'base64':
       return 'Base64';
+    case 'html':
+      return tr.itToolboxTabHtml;
     case 'regex':
       return tr.itToolboxTabRegex;
+    case 'timestamp':
+      return tr.itToolboxTabTimestamp;
     case 'qr-gen':
       return tr.itToolboxTabQrGen;
     case 'crypto-gen':
@@ -1168,69 +1142,152 @@ function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
   }
 }
 
+function isTabId(v: string | null): v is TabId {
+  return !!v && (ALL_TABS as string[]).includes(v);
+}
+
 export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
   const settings = useSettings();
   const t = getT(settings.locale);
+  const isLight = settings.theme === 'light';
   const [activeTab, setActiveTab] = useState<TabId>('jwt');
+  const [tabReady, setTabReady] = useState(false);
+  const [toolQuery, setToolQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const stored = await chromeStorageAdapter.getItem(LAST_TAB_KEY);
+      if (cancelled) return;
+      if (isTabId(stored)) setActiveTab(stored);
+      setTabReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !tabReady) return;
+    void chromeStorageAdapter.setItem(LAST_TAB_KEY, activeTab);
+  }, [activeTab, open, tabReady]);
+
+  const selectTab = (id: TabId) => {
+    setActiveTab(id);
+    setToolQuery('');
+  };
+
+  const q = toolQuery.trim().toLowerCase();
+  const visibleGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((id) => !q || tabLabel(id, t).toLowerCase().includes(q)),
+  })).filter((g) => g.items.length > 0);
 
   if (!open) return null;
 
+  const border = isLight ? 'border-black/10' : 'border-white/10';
+  const dialogBg = isLight ? 'bg-white' : 'bg-sidebar';
+  const titleClass = isLight ? 'text-slate-900' : 'text-white';
+  const closeBtn = isLight
+    ? 'text-slate-500 hover:text-slate-900 hover:bg-black/[0.06]'
+    : 'text-text-muted hover:text-white hover:bg-white/10';
+  const navIdle = isLight
+    ? 'text-slate-600 hover:bg-black/[0.04] hover:text-slate-900'
+    : 'text-text-muted hover:bg-white/5 hover:text-white';
+  const sidebarBg = isLight ? 'bg-slate-50/80' : 'bg-black/20';
+
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className={`fixed inset-0 z-[200] flex items-center justify-center p-4 backdrop-blur-sm ${
+        isLight ? 'bg-slate-900/40' : 'bg-black/60'
+      }`}
       onClick={onClose}
     >
       <div
-        className="bg-sidebar border border-white/10 rounded-2xl shadow-2xl w-[80vw] max-w-[80vw] h-[80vh] max-h-[80vh] flex flex-col overflow-hidden"
+        className={`${dialogBg} border ${border} rounded-2xl shadow-2xl w-[92vw] max-w-[1100px] h-[86vh] max-h-[86vh] flex flex-col overflow-hidden`}
         role="dialog"
         aria-labelledby="it-toolbox-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
-          <h2 id="it-toolbox-title" className="flex items-center gap-2 text-base font-semibold text-white">
+        <div className={`flex items-center justify-between px-4 py-3 border-b ${border} flex-shrink-0`}>
+          <h2 id="it-toolbox-title" className={`flex items-center gap-2 text-base font-semibold ${titleClass}`}>
             <span className="material-symbols-outlined text-accent text-[20px]">build</span>
             {t.itToolboxTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition"
+            className={`p-1.5 rounded-lg transition ${closeBtn}`}
             aria-label={t.itToolboxClose}
           >
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
         </div>
 
-        <div className="flex border-b border-white/10 px-2 gap-0.5 flex-shrink-0 overflow-x-auto">
-          {TAB_ORDER.map((id) => {
-            const style = TAB_STYLES[id];
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium rounded-t-lg border-b-2 transition whitespace-nowrap ${
-                  activeTab === id
-                    ? style.active
-                    : 'border-transparent text-text-muted hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
-                {tabLabel(id, t)}
-              </button>
-            );
-          })}
-        </div>
+        <div className="flex flex-1 min-h-0">
+          <nav className={`w-52 flex-shrink-0 border-r ${border} ${sidebarBg} flex flex-col`}>
+            <div className="p-2.5">
+              <div className="relative">
+                <span className="material-symbols-outlined text-[16px] absolute left-2 top-1/2 -translate-y-1/2 text-text-muted">
+                  search
+                </span>
+                <input
+                  type="search"
+                  value={toolQuery}
+                  onChange={(e) => setToolQuery(e.target.value)}
+                  placeholder={t.itToolboxSearchTools}
+                  className={`w-full pl-7 pr-2 py-1.5 rounded-lg border text-[11px] ${
+                    isLight
+                      ? 'border-black/10 bg-white text-slate-900 placeholder-slate-400'
+                      : 'border-white/10 bg-white/5 text-white placeholder-text-muted'
+                  }`}
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-3">
+              {visibleGroups.map((group) => (
+                <div key={group.id}>
+                  <p className={`px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-text-muted'}`}>
+                    {groupLabel(group.id, t)}
+                  </p>
+                  <div className="space-y-0.5">
+                    {group.items.map((id) => {
+                      const style = TAB_STYLES[id];
+                      const active = activeTab === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => selectTab(id)}
+                          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-[12px] font-medium text-left transition ${
+                            active ? style.active : navIdle
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
+                          <span className="truncate">{tabLabel(id, t)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </nav>
 
-        <div className="flex-1 overflow-hidden p-5 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {activeTab === 'json' && <JsonTab t={t} />}
-            {activeTab === 'jwt' && <JwtTab t={t} />}
-            {activeTab === 'url' && <UrlTab t={t} />}
-            {activeTab === 'base64' && <Base64Tab t={t} />}
-            {activeTab === 'regex' && <RegexTab t={t} />}
-            {activeTab === 'qr-gen' && <QrGenTab t={t} />}
-            {activeTab === 'crypto-gen' && <CryptoGenTab t={t} />}
+          <div className="flex-1 overflow-hidden p-5 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {activeTab === 'json' && <JsonTab t={t} />}
+              {activeTab === 'json-tree' && <JsonTreeTab t={t} />}
+              {activeTab === 'jwt' && <JwtTab t={t} />}
+              {activeTab === 'url' && <UrlTab t={t} />}
+              {activeTab === 'base64' && <Base64Tab t={t} />}
+              {activeTab === 'html' && <HtmlTab t={t} />}
+              {activeTab === 'regex' && <RegexTab t={t} />}
+              {activeTab === 'timestamp' && <TimestampTab t={t} />}
+              {activeTab === 'qr-gen' && <QrGenTab t={t} />}
+              {activeTab === 'crypto-gen' && <CryptoGenTab t={t} />}
+            </div>
           </div>
         </div>
       </div>
