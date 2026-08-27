@@ -48,23 +48,24 @@ function HomeRoute({
 
 export default function NewTabApp() {
   const { session, loading } = useAuth();
+  const location = useLocation();
   const [addParams, setAddParams] = useState<{ url: string; title: string } | null>(null);
   const [openAuthenticator, setOpenAuthenticator] = useState(false);
   const [openItTools, setOpenItTools] = useState(false);
   const [openSettings, setOpenSettings] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     if (params.get('add') === '1') {
       setAddParams({
         url: params.get('url') ?? '',
         title: params.get('title') ?? '',
       });
     }
-    if (params.get('open') === 'authenticator') setOpenAuthenticator(true);
-    if (params.get('open') === 'it-tools') setOpenItTools(true);
-    if (params.get('open') === 'settings') setOpenSettings(true);
-  }, []);
+    setOpenAuthenticator(params.get('open') === 'authenticator');
+    setOpenItTools(params.get('open') === 'it-tools');
+    setOpenSettings(params.get('open') === 'settings');
+  }, [location.search]);
 
   if (loading) {
     // Use default language (vi) while auth is loading; NewTabApp is not yet wrapped in SettingsProvider here.
