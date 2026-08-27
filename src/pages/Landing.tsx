@@ -12,6 +12,26 @@ import Toast, { type ToastType } from '../components/Toast';
 const DEFAULT_LANDING_BACKGROUND =
   'https://images.unsplash.com/photo-1769878539345-2d8c4769209d?q=80&w=1483&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D';
 
+function CardSheen() {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-violet-500 via-accent to-cyan-400" />
+      <div className="pointer-events-none absolute -top-20 left-1/2 h-36 w-48 -translate-x-1/2 rounded-full bg-white/25 blur-3xl" />
+    </>
+  );
+}
+
+function ghostHeaderBtn(isLight: boolean, enabled = true) {
+  if (!enabled) {
+    return isLight
+      ? 'bg-slate-200/60 border-black/10 text-slate-400 cursor-not-allowed opacity-60'
+      : 'bg-black/20 border-white/10 text-slate-400 cursor-not-allowed opacity-60';
+  }
+  return isLight
+    ? 'bg-white/80 border-black/10 text-slate-800 hover:bg-white hover:shadow-sm'
+    : 'bg-white/8 border-white/15 text-white hover:bg-white/15';
+}
+
 export default function Landing() {
   const settings = useSettings();
   const t = getT(settings.locale);
@@ -216,6 +236,25 @@ export default function Landing() {
     [now, settings.locale]
   );
 
+  const clockParts = useMemo(() => {
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const use12 = settings.timeFormat === '12';
+    const h = use12 ? ((hours + 11) % 12) + 1 : hours;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const period = use12
+      ? hours < 12
+        ? settings.locale === 'vi'
+          ? 'SA'
+          : 'AM'
+        : settings.locale === 'vi'
+          ? 'CH'
+          : 'PM'
+      : null;
+    return { hhmm: `${pad(h)}:${pad(minutes)}`, ss: pad(seconds), period };
+  }, [now, settings.timeFormat, settings.locale]);
+
   const showPomodoro = settings.showLandingPomodoro ?? true;
   const showTodos = settings.showLandingTodos ?? true;
   const gridColsClass = 'grid-cols-1 md:grid-cols-3';
@@ -245,21 +284,19 @@ export default function Landing() {
 
   const isLight = settings.theme === 'light';
 
+  const glassCard = isLight
+    ? 'relative overflow-hidden rounded-[28px] border border-white/80 bg-white/70 ring-1 ring-black/[0.05] backdrop-blur-2xl shadow-[0_24px_70px_rgba(15,23,42,0.14)]'
+    : 'relative overflow-hidden rounded-[28px] border border-white/12 bg-zinc-950/40 ring-1 ring-white/[0.07] backdrop-blur-2xl shadow-[0_30px_90px_rgba(0,0,0,0.55)]';
+
   const pomodoroShellClass = !showPomodoro
     ? ''
-    : isLight
-      ? 'rounded-2xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_18px_48px_rgba(15,23,42,0.12)]'
-      : 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[20px] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_22px_70px_rgba(0,0,0,0.88)]';
+    : `${glassCard} px-4 py-5 sm:px-5 sm:py-6`;
 
-  const heroShellClass = isLight
-    ? 'rounded-3xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_20px_56px_rgba(15,23,42,0.12)]'
-    : 'rounded-3xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[22px] px-4 py-4 sm:px-6 sm:py-6 md:px-10 md:py-8 shadow-[0_28px_90px_rgba(0,0,0,0.92)]';
+  const heroShellClass = `${glassCard} px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10`;
 
   const todosShellClass = !showTodos
     ? ''
-    : isLight
-      ? 'rounded-2xl bg-white/85 border border-black/10 ring-1 ring-black/[0.06] backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_16px_44px_rgba(15,23,42,0.1)]'
-      : 'rounded-2xl bg-black/35 border border-white/15 ring-1 ring-white/5 backdrop-blur-[18px] px-3 py-3 sm:px-4 shadow-[0_22px_55px_rgba(0,0,0,0.82)]';
+    : `${glassCard} px-4 py-4 sm:px-5 sm:py-5`;
 
   const panelStrong = isLight ? 'text-slate-800' : 'text-slate-200';
   const panelMuted = isLight ? 'text-slate-600' : 'text-slate-300';
@@ -304,103 +341,106 @@ export default function Landing() {
         className="absolute inset-0"
         style={{
           background: isLight
-            ? 'linear-gradient(180deg, rgba(255,255,255,0.22) 0%, rgba(248,250,252,0.82) 42%, rgba(226,232,240,0.9) 100%)'
-            : 'radial-gradient(circle at top, rgba(15,23,42,0.4), rgba(15,23,42,0.9))',
+            ? 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(248,250,252,0.55) 48%, rgba(226,232,240,0.72) 100%)'
+            : 'radial-gradient(circle at top, rgba(15,23,42,0.28), rgba(15,23,42,0.72))',
           opacity: overlayOpacity,
         }}
       />
+      <div className="landing-vignette" />
+      <div className="landing-grain" />
 
       <div className="relative z-10 flex flex-col min-h-full w-full">
-        <div
-          className={`flex-shrink-0 flex items-center justify-between px-3 py-3 sm:px-4 sm:py-4 gap-2 transition-shadow duration-300 ${
-            mainScrolled
-              ? isLight
-                ? 'shadow-[0_8px_28px_rgba(15,23,42,0.1)] border-b border-black/10'
-                : 'shadow-[0_12px_40px_rgba(0,0,0,0.55)] border-b border-white/10'
-              : ''
-          }`}
-        >
+        <div className="flex-shrink-0 px-3 pt-3 sm:px-5 sm:pt-4">
           <div
-            className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1 ${
-              isLight ? 'bg-white/80 border border-black/10' : 'bg-black/35'
+            className={`mx-auto max-w-[1600px] flex items-center justify-between gap-2 rounded-2xl border px-2.5 py-2 sm:px-3 transition-shadow duration-300 ${
+              isLight
+                ? 'bg-white/70 border-white/80 backdrop-blur-xl shadow-[0_10px_40px_rgba(15,23,42,0.08)]'
+                : 'bg-black/35 border-white/12 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.35)]'
+            } ${
+              mainScrolled
+                ? isLight
+                  ? 'shadow-[0_12px_36px_rgba(15,23,42,0.14)]'
+                  : 'shadow-[0_16px_48px_rgba(0,0,0,0.55)]'
+                : ''
             }`}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
-            <span
-              className={`text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.18em] ${
-                isLight ? 'text-slate-700' : 'text-slate-100'
-              }`}
-            >
-              LinkHub
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                if (unsplashEnabled) {
-                  refreshUnsplash();
+            <div className="inline-flex items-center gap-2.5 min-w-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_8px_24px_rgba(129,140,248,0.45)]">
+                <span className="material-symbols-outlined text-[18px]">hub</span>
+              </div>
+              <div className="min-w-0 hidden sm:block">
+                <p
+                  className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                    isLight ? 'text-slate-800' : 'text-white'
+                  }`}
+                >
+                  LinkHub
+                </p>
+                <p className={`flex items-center gap-1.5 text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+                  {dateStr}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (unsplashEnabled) {
+                    refreshUnsplash();
+                  }
+                }}
+                disabled={!unsplashEnabled}
+                className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:min-w-[44px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${ghostHeaderBtn(
+                  isLight,
+                  unsplashEnabled
+                )}`}
+                title={
+                  unsplashEnabled
+                    ? settings.locale === 'vi'
+                      ? 'Đổi background ngay lập tức (Unsplash)'
+                      : 'Change background now (Unsplash)'
+                    : settings.locale === 'vi'
+                      ? 'Bật Unsplash background trong Cài đặt để dùng nút này'
+                      : 'Enable Unsplash background in Settings to use this button'
                 }
-              }}
-              disabled={!unsplashEnabled}
-              className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:min-w-[44px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
-                unsplashEnabled
-                  ? isLight
-                    ? 'bg-white/85 border-black/15 text-slate-800 hover:bg-white'
-                    : 'bg-black/35 border-white/25 text-white hover:bg-black/55'
-                  : isLight
-                    ? 'bg-slate-200/60 border-black/10 text-slate-400 cursor-not-allowed opacity-60'
-                    : 'bg-black/20 border-white/10 text-slate-400 cursor-not-allowed opacity-60'
-              }`}
-              title={
-                unsplashEnabled
-                  ? settings.locale === 'vi'
-                    ? 'Đổi background ngay lập tức (Unsplash)'
-                    : 'Change background now (Unsplash)'
-                  : settings.locale === 'vi'
-                  ? 'Bật Unsplash background trong Cài đặt để dùng nút này'
-                  : 'Enable Unsplash background in Settings to use this button'
-              }
-            >
-              <span className="material-symbols-outlined text-[16px]">
-                refresh
-              </span>
-              <span className="hidden sm:inline">
-                {settings.locale === 'vi'
-                  ? 'Đổi background'
-                  : 'Change background'}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setBgSettingsOpen((o) => !o)}
-              className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:px-3 sm:min-h-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${
-                isLight
-                  ? 'bg-white/85 border-black/15 text-slate-800 hover:bg-white'
-                  : 'bg-black/35 border-white/25 text-white hover:bg-black/55 hover:text-white'
-              }`}
-              aria-label={t.settings}
-            >
-              <span
-                className={`material-symbols-outlined text-[16px] ${
-                  isLight ? 'text-slate-800' : 'text-white'
-                }`}
               >
-                settings
-              </span>
-              <span className={`hidden sm:inline ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                {t.settings}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/bookmarks')}
-              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-full max-sm:min-h-[44px] sm:min-h-0 bg-white/95 text-slate-900 px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.25)] hover:bg-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] hover:shadow-[0_14px_44px_rgba(15,23,42,0.35)] motion-reduce:transform-none"
-            >
-              <span className="material-symbols-outlined text-[14px] sm:text-[16px]">bookmark</span>
-              <span>{t.landingPrimaryCta}</span>
-              <span className="hidden sm:inline ml-1 rounded border border-slate-900/20 px-1 py-0.5 text-[9px] font-medium opacity-60">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}</span>
-            </button>
+                <span className="material-symbols-outlined text-[16px]">refresh</span>
+                <span className="hidden sm:inline">{t.landingChangeBackground}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBgSettingsOpen((o) => !o)}
+                className={`inline-flex items-center justify-center gap-1 rounded-full max-sm:min-h-[44px] max-sm:px-3 sm:min-h-0 px-2.5 py-1.5 sm:px-3 border text-[11px] transition ${ghostHeaderBtn(
+                  isLight
+                )}`}
+                aria-label={t.settings}
+              >
+                <span className="material-symbols-outlined text-[16px]">settings</span>
+                <span className="hidden sm:inline">{t.settings}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/bookmarks?open=it-tools')}
+                className={`hidden md:inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 border text-[11px] font-medium transition ${ghostHeaderBtn(
+                  isLight
+                )}`}
+              >
+                <span className="material-symbols-outlined text-[16px]">handyman</span>
+                <span>{t.landingSecondaryCta}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/bookmarks')}
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-full max-sm:min-h-[44px] sm:min-h-0 bg-gradient-to-r from-violet-500 to-cyan-400 text-white px-3 py-1.5 sm:px-4 text-[10px] sm:text-[11px] font-semibold shadow-[0_10px_30px_rgba(129,140,248,0.4)] hover:brightness-110 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99] motion-reduce:transform-none"
+              >
+                <span className="material-symbols-outlined text-[14px] sm:text-[16px]">bookmark</span>
+                <span>{t.landingPrimaryCta}</span>
+                <span className="hidden sm:inline ml-1 rounded border border-white/30 px-1 py-0.5 text-[9px] font-medium opacity-80">
+                  {navigator.platform?.toUpperCase().includes('MAC') ? '⌘+B' : 'Ctrl+B'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -422,20 +462,37 @@ export default function Landing() {
             >
               {showPomodoro && (
                 <>
-              <div className="flex items-center justify-between mb-2">
+              <CardSheen />
+              <div className="flex items-center justify-between mb-3">
                 <span
-                  className={`text-[12px] font-semibold uppercase tracking-[0.16em] ${panelStrong}`}
+                  className={`inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.16em] ${panelStrong}`}
                 >
-                  {settings.locale === 'vi' ? 'Pomodoro' : 'Pomodoro'}
+                  <span className="material-symbols-outlined text-[16px] text-emerald-400">timer</span>
+                  Pomodoro
                 </span>
-                <span className={`text-[11px] ${panelMuted}`}>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    pomodoroMode === 'work'
+                      ? isLight
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-emerald-500/20 text-emerald-300'
+                      : isLight
+                        ? 'bg-sky-100 text-sky-700'
+                        : 'bg-sky-500/20 text-sky-300'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      pomodoroMode === 'work' ? 'bg-emerald-400' : 'bg-sky-400'
+                    } ${pomodoroRunning ? 'animate-pulse' : ''}`}
+                  />
                   {pomodoroMode === 'work'
                     ? settings.locale === 'vi'
                       ? 'Tập trung'
                       : 'Focus'
                     : settings.locale === 'vi'
-                    ? 'Nghỉ'
-                    : 'Break'}
+                      ? 'Nghỉ'
+                      : 'Break'}
                 </span>
               </div>
               <div
@@ -444,15 +501,21 @@ export default function Landing() {
                 }`}
               >
                 <div
-                  className="h-full rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.9)] transition-all duration-300"
+                  className={`h-full rounded-full shadow-[0_0_12px_rgba(52,211,153,0.9)] transition-all duration-300 ${
+                    pomodoroMode === 'work' ? 'bg-emerald-400' : 'bg-sky-400'
+                  }`}
                   style={{ width: `${pomodoroProgress * 100}%` }}
                 />
               </div>
 
               <div className="flex-1 flex items-center justify-center mb-2 w-full">
                 <div
-                  className={`w-24 h-24 sm:w-28 sm:h-28 md:w-[140px] md:h-[140px] flex-shrink-0 ${
-                    pomodoroRunning ? 'pomodoro-ring-active' : ''
+                  className={`w-28 h-28 sm:w-32 sm:h-32 md:w-[156px] md:h-[156px] flex-shrink-0 ${
+                    pomodoroRunning
+                      ? pomodoroMode === 'break'
+                        ? 'pomodoro-ring-break'
+                        : 'pomodoro-ring-active'
+                      : ''
                   }`}
                 >
                 <svg width="100%" height="100%" viewBox="0 0 80 80" className="max-w-full max-h-full">
@@ -469,12 +532,17 @@ export default function Landing() {
                     const remainingSeconds = Math.max(0, pomodoroSeconds % 60);
                     const pad = (n: number) => n.toString().padStart(2, '0');
                     const trackStroke = isLight
-                      ? 'rgba(100,116,139,0.35)'
-                      : 'rgba(148,163,184,0.35)';
-                    const progressStroke = isLight
-                      ? 'rgba(5,150,105,0.95)'
-                      : 'rgba(248,250,252,0.9)';
-                    const timeFill = isLight ? 'rgba(15,23,42,0.92)' : 'rgba(248,250,252,0.9)';
+                      ? 'rgba(100,116,139,0.28)'
+                      : 'rgba(148,163,184,0.28)';
+                    const progressStroke =
+                      pomodoroMode === 'break'
+                        ? isLight
+                          ? 'rgba(2,132,199,0.95)'
+                          : 'rgba(125,211,252,0.95)'
+                        : isLight
+                          ? 'rgba(5,150,105,0.95)'
+                          : 'rgba(52,211,153,0.95)';
+                    const timeFill = isLight ? 'rgba(15,23,42,0.92)' : 'rgba(248,250,252,0.95)';
                     return (
                       <>
                         <circle
@@ -505,6 +573,7 @@ export default function Landing() {
                           fill={timeFill}
                           fontSize="14"
                           fontWeight="600"
+                          style={{ fontVariantNumeric: 'tabular-nums' }}
                         >
                           {`${remainingMinutes}:${pad(remainingSeconds)}`}
                         </text>
@@ -520,7 +589,7 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => setPomodoroRunning((r) => !r)}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-white/90 text-slate-900 text-[11px] font-semibold hover:bg-white"
+                    className="flex-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-900 text-[11px] font-semibold shadow-[0_8px_20px_rgba(16,185,129,0.28)] hover:brightness-110"
                   >
                     {pomodoroRunning
                       ? settings.locale === 'vi'
@@ -534,12 +603,14 @@ export default function Landing() {
                     type="button"
                     onClick={() => {
                       setPomodoroRunning(false);
-                      setPomodoroSeconds(pomodoroMode === 'work' ? 25 * 60 : 5 * 60);
+                      const next = pomodoroMode === 'work' ? 25 * 60 : 5 * 60;
+                      setPomodoroSeconds(next);
+                      setPomodoroTotalSeconds(next);
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] border min-w-[80px] ${
+                    className={`px-3 py-2 rounded-xl text-[11px] border min-w-[80px] ${
                       isLight
-                        ? 'bg-slate-100 text-slate-800 border-black/10 hover:bg-slate-200'
-                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/25'
+                        ? 'bg-white/80 text-slate-800 border-black/10 hover:bg-white'
+                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/20'
                     }`}
                   >
                     {settings.locale === 'vi' ? 'Đặt lại' : 'Reset'}
@@ -553,15 +624,16 @@ export default function Landing() {
                       setPomodoroMode('work');
                       setPomodoroRunning(false);
                       setPomodoroSeconds(25 * 60);
+                      setPomodoroTotalSeconds(25 * 60);
                     }}
-                    className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
+                    className={`flex-1 min-w-[100px] px-2 py-1.5 rounded-xl border text-[11px] font-medium ${
                       pomodoroMode === 'work'
                         ? isLight
-                          ? 'bg-emerald-100 border-emerald-400/80 text-slate-900'
-                          : 'bg-white/15 border-white/40'
+                          ? 'bg-emerald-100 border-emerald-400/80 text-emerald-800'
+                          : 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
                         : isLight
-                          ? 'bg-white/60 border-black/15 text-slate-700'
-                          : 'bg-black/20 border-white/20'
+                          ? 'bg-white/60 border-black/10 text-slate-700'
+                          : 'bg-white/5 border-white/15 text-slate-300'
                     }`}
                   >
                     {settings.locale === 'vi' ? '25 phút tập trung' : '25 min focus'}
@@ -572,15 +644,16 @@ export default function Landing() {
                       setPomodoroMode('break');
                       setPomodoroRunning(false);
                       setPomodoroSeconds(5 * 60);
+                      setPomodoroTotalSeconds(5 * 60);
                     }}
-                    className={`flex-1 min-w-[100px] px-2 py-1 rounded-lg border ${
+                    className={`flex-1 min-w-[100px] px-2 py-1.5 rounded-xl border text-[11px] font-medium ${
                       pomodoroMode === 'break'
                         ? isLight
-                          ? 'bg-emerald-100 border-emerald-400/80 text-slate-900'
-                          : 'bg-white/15 border-white/40'
+                          ? 'bg-sky-100 border-sky-400/80 text-sky-800'
+                          : 'bg-sky-500/20 border-sky-400/50 text-sky-200'
                         : isLight
-                          ? 'bg-white/60 border-black/15 text-slate-700'
-                          : 'bg-black/20 border-white/20'
+                          ? 'bg-white/60 border-black/10 text-slate-700'
+                          : 'bg-white/5 border-white/15 text-slate-300'
                     }`}
                   >
                     {settings.locale === 'vi' ? '5 phút nghỉ' : '5 min break'}
@@ -594,7 +667,7 @@ export default function Landing() {
                     max={180}
                     value={pomodoroCustomMinutes}
                     onChange={(e) => setPomodoroCustomMinutes(e.target.value)}
-                    className={`w-20 px-2 py-1 rounded-lg text-[11px] outline-none text-center focus:ring-2 focus:ring-accent/40 ${
+                    className={`w-20 px-2 py-1.5 rounded-xl text-[11px] outline-none text-center focus:ring-2 focus:ring-accent/40 ${
                       isLight
                         ? 'bg-white border border-black/15 text-slate-900'
                         : 'bg-black/40 border border-white/25 text-slate-50 focus:ring-white/60'
@@ -610,10 +683,10 @@ export default function Landing() {
                       setPomodoroSeconds(seconds);
                       setPomodoroTotalSeconds(seconds);
                     }}
-                    className={`flex-1 px-3 py-1 rounded-lg text-[11px] border text-center ${
+                    className={`flex-1 px-3 py-1.5 rounded-xl text-[11px] border text-center ${
                       isLight
-                        ? 'bg-slate-100 text-slate-800 border-black/10 hover:bg-slate-200'
-                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/25'
+                        ? 'bg-white/80 text-slate-800 border-black/10 hover:bg-white'
+                        : 'bg-white/10 text-slate-100 hover:bg-white/20 border-white/20'
                     }`}
                   >
                     {settings.locale === 'vi' ? 'Áp dụng phút tùy chỉnh' : 'Apply custom minutes'}
@@ -627,42 +700,42 @@ export default function Landing() {
             <div
               className={`landing-stagger-item h-full flex flex-col justify-center ${heroShellClass}`}
             >
+              <CardSheen />
               <div
-                className={`flex items-baseline justify-center gap-2 text-[56px] sm:text-[72px] md:text-[88px] font-semibold leading-none tracking-tight ${
+                className={`landing-clock flex items-baseline justify-center gap-1.5 font-semibold leading-none ${
                   isLight
                     ? 'text-slate-900 [text-shadow:0_1px_0_rgba(255,255,255,0.6)]'
                     : 'drop-shadow-[0_16px_52px_rgba(0,0,0,0.95)] text-white'
                 }`}
               >
-                <span>
-                  {(() => {
-                    const hours = now.getHours();
-                    const minutes = now.getMinutes();
-                    const seconds = now.getSeconds();
-                    const use12 = settings.timeFormat === '12';
-                    const h = use12 ? ((hours + 11) % 12) + 1 : hours;
-                    const pad = (n: number) => n.toString().padStart(2, '0');
-                    return `${pad(h)}:${pad(minutes)}:${pad(seconds)}`;
-                  })()}
+                <span
+                  className={`text-[52px] sm:text-[68px] md:text-[84px] ${
+                    isLight
+                      ? 'text-slate-900'
+                      : 'bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent'
+                  }`}
+                >
+                  {clockParts.hhmm}
                 </span>
-                {settings.timeFormat === '12' && (
+                <span
+                  className={`text-[28px] sm:text-[36px] md:text-[44px] font-medium ${
+                    isLight ? 'text-indigo-500' : 'text-cyan-300'
+                  }`}
+                >
+                  :{clockParts.ss}
+                </span>
+                {clockParts.period && (
                   <span
-                    className={`text-[24px] sm:text-[32px] md:text-[40px] font-semibold ${
-                      isLight ? 'text-slate-800' : ''
+                    className={`ml-1 text-[20px] sm:text-[28px] md:text-[34px] font-semibold ${
+                      isLight ? 'text-slate-700' : 'text-white/80'
                     }`}
                   >
-                    {now.getHours() < 12
-                      ? settings.locale === 'vi'
-                        ? 'SA'
-                        : 'AM'
-                      : settings.locale === 'vi'
-                      ? 'CH'
-                      : 'PM'}
+                    {clockParts.period}
                   </span>
                 )}
               </div>
               <p
-                className={`mt-4 text-lg sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-center ${
+                className={`mt-5 text-lg sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-center ${
                   isLight
                     ? 'text-slate-800'
                     : 'drop-shadow-[0_8px_32px_rgba(0,0,0,0.88)] text-white'
@@ -676,15 +749,52 @@ export default function Landing() {
                 ) : null}
                 <span className={isLight ? 'text-slate-700' : 'text-white/90'}>.</span>
               </p>
+              <p className={`mt-2 text-center text-[12px] sm:text-sm ${panelMuted}`}>
+                {t.landingFocusQuestion}
+              </p>
               <p
-                className={`mt-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-center ${
+                className={`mt-3 inline-flex self-center items-center rounded-full border px-3 py-1 text-[10px] sm:text-[11px] uppercase tracking-[0.18em] ${
                   isLight
-                    ? 'text-slate-600'
-                    : 'text-slate-300/90 drop-shadow-[0_6px_20px_rgba(0,0,0,0.85)]'
+                    ? 'border-black/10 bg-white/70 text-slate-600'
+                    : 'border-white/15 bg-white/5 text-slate-300/90'
                 }`}
               >
                 {dateStr}
               </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/bookmarks')}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white text-slate-900 px-3.5 py-1.5 text-[11px] font-semibold shadow-sm hover:shadow-md"
+                >
+                  <span className="material-symbols-outlined text-[15px]">bookmark</span>
+                  {t.landingPrimaryCta}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/bookmarks?open=it-tools')}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[11px] font-medium ${
+                    isLight
+                      ? 'border-black/10 bg-white/70 text-slate-800 hover:bg-white'
+                      : 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">handyman</span>
+                  {t.landingSecondaryCta}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/bookmarks?open=authenticator')}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[11px] font-medium ${
+                    isLight
+                      ? 'border-black/10 bg-white/70 text-slate-800 hover:bg-white'
+                      : 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">shield</span>
+                  {t.landingOpenAuthenticator}
+                </button>
+              </div>
             </div>
 
             <div
@@ -692,8 +802,13 @@ export default function Landing() {
             >
             {showTodos && (
             <>
-            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-              <div>
+            <CardSheen />
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400/30 to-rose-400/20">
+                  <span className="material-symbols-outlined text-[16px] text-amber-400">checklist</span>
+                </span>
+                <div>
                 <span
                   className={`text-[12px] font-semibold uppercase tracking-[0.16em] ${panelStrong}`}
                 >
@@ -702,6 +817,7 @@ export default function Landing() {
                 <span className={`ml-2 text-[12px] ${panelMuted}`}>
                   {todos.filter((t) => !t.done).length}/{todos.length}
                 </span>
+                </div>
               </div>
               <div
                 className={`flex items-center gap-1 text-[11px] rounded-full px-1.5 py-0.5 border flex-shrink-0 ${
@@ -840,23 +956,28 @@ export default function Landing() {
                 value={todoInput}
                 onChange={(e) => setTodoInput(e.target.value)}
                 placeholder={t.landingTodoPlaceholder}
-                className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] outline-none focus:ring-2 focus:ring-accent/40 ${
+                className={`flex-1 rounded-xl px-3 py-2 text-[12px] outline-none focus:ring-2 focus:ring-accent/40 ${
                   isLight
-                    ? 'bg-white border border-black/15 text-slate-900 placeholder:text-slate-400'
-                    : 'bg-white/5 border border-white/20 text-slate-50 placeholder:text-slate-400 focus:ring-white/70'
+                    ? 'bg-white border border-black/10 text-slate-900 placeholder:text-slate-400 shadow-sm'
+                    : 'bg-white/5 border border-white/15 text-slate-50 placeholder:text-slate-400 focus:ring-white/70'
                 }`}
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-900 text-[11px] font-semibold hover:bg-white disabled:opacity-60"
+                className="inline-flex items-center justify-center min-w-[2.5rem] px-3 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-400 text-white text-[11px] font-semibold hover:brightness-110 disabled:opacity-60"
                 disabled={!todoInput.trim()}
               >
-                +
+                {t.landingTodoAdd}
               </button>
             </form>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-1.5">
               {todos.length === 0 ? (
-                <p className={`text-[12px] ${panelMuted}`}>{t.landingTodoEmpty}</p>
+                <div className={`flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center ${panelMuted}`}>
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400/20 to-violet-400/10">
+                    <span className="material-symbols-outlined text-[26px] text-amber-400">edit_note</span>
+                  </span>
+                  <p className="text-[12px] max-w-[16rem]">{t.landingTodoEmpty}</p>
+                </div>
               ) : (
                 todos
                   .filter((item) => {
@@ -883,10 +1004,10 @@ export default function Landing() {
                     return (
                       <div
                         key={item.id}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12px] text-left transition border-l-2 ${colorClass} ${
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[12px] text-left transition border-l-2 ${colorClass} ${
                           isLight
-                            ? 'bg-transparent hover:bg-black/[0.04]'
-                            : 'bg-white/0 hover:bg-white/5'
+                            ? 'bg-white/70 hover:bg-white border border-black/5'
+                            : 'bg-white/[0.04] hover:bg-white/[0.08] border border-white/5'
                         }`}
                       >
                         <button
@@ -981,20 +1102,25 @@ export default function Landing() {
             onClick={() => setBgSettingsOpen(false)}
           >
             <div
-              className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border p-4 sm:p-5 text-left text-[11px] ${
+              className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[24px] border p-0 text-left text-[11px] ${
                 isLight
-                  ? 'border-black/10 shadow-[0_20px_56px_rgba(15,23,42,0.14)]'
-                  : 'border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)]'
+                  ? 'border-black/10 shadow-[0_24px_80px_rgba(15,23,42,0.18)]'
+                  : 'border-white/12 shadow-[0_28px_90px_rgba(0,0,0,0.85)]'
               }`}
               style={{ backgroundColor: 'var(--surface-modal)' }}
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="h-[3px] w-full bg-gradient-to-r from-violet-500 via-accent to-cyan-400" />
+              <div className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <span
-                  className={`font-semibold text-sm tracking-wide ${
+                  className={`flex items-center gap-2 font-semibold text-sm tracking-wide ${
                     isLight ? 'text-slate-900' : 'text-slate-50'
                   }`}
                 >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white">
+                    <span className="material-symbols-outlined text-[16px]">tune</span>
+                  </span>
                   {t.landingBgSource}
                 </span>
                 <button
@@ -1324,6 +1450,7 @@ export default function Landing() {
                 </div>
               </div>
               </div>
+              </div>
             )}
 
         {nameModalOpen && (
@@ -1333,14 +1460,16 @@ export default function Landing() {
             onClick={() => setNameModalOpen(false)}
           >
             <div
-              className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border p-4 sm:p-5 text-left text-[12px] ${
+              className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[24px] border p-0 text-left text-[12px] ${
                 isLight
-                  ? 'border-black/10 shadow-[0_20px_56px_rgba(15,23,42,0.14)]'
-                  : 'border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.9)]'
+                  ? 'border-black/10 shadow-[0_24px_80px_rgba(15,23,42,0.18)]'
+                  : 'border-white/12 shadow-[0_28px_90px_rgba(0,0,0,0.85)]'
               }`}
               style={{ backgroundColor: 'var(--surface-modal)' }}
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="h-[3px] w-full bg-gradient-to-r from-violet-500 via-accent to-cyan-400" />
+              <div className="p-5">
               <h2
                 className={`text-sm font-semibold mb-2 ${isLight ? 'text-slate-900' : 'text-slate-50'}`}
               >
@@ -1389,6 +1518,7 @@ export default function Landing() {
                 >
                   {settings.locale === 'vi' ? 'Lưu tên' : 'Save'}
                 </button>
+              </div>
               </div>
             </div>
           </div>

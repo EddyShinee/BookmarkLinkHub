@@ -376,10 +376,59 @@ html.light .skeleton-shimmer {
   }
 }
 
+@keyframes pomodoro-ring-glow-break {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.75));
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .pomodoro-ring-active {
     animation: pomodoro-ring-glow 2.2s ease-in-out infinite;
   }
+  .pomodoro-ring-break {
+    animation: pomodoro-ring-glow-break 2.2s ease-in-out infinite;
+  }
+}
+
+.landing-clock {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+}
+
+.landing-grain {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.35) 0.6px, transparent 0.6px);
+  background-size: 3px 3px;
+}
+
+html.light .landing-grain {
+  opacity: 0.12;
+  mix-blend-mode: multiply;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.35) 0.6px, transparent 0.6px);
+}
+
+.landing-vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(0, 0, 0, 0.38) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, transparent 22%, transparent 62%, rgba(0, 0, 0, 0.28) 100%);
+}
+
+html.light .landing-vignette {
+  background:
+    radial-gradient(ellipse at 50% 42%, transparent 42%, rgba(15, 23, 42, 0.12) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 28%, transparent 70%, rgba(15, 23, 42, 0.1) 100%);
 }
 
 @keyframes spotlight-panel-in {
