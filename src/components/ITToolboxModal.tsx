@@ -12,6 +12,7 @@ import {
   runRegex,
   sanitizeRegexFlags,
 } from '../lib/regexUtils';
+import { EscapeTab } from './it-toolbox/EscapeTab';
 import { HtmlTab } from './it-toolbox/HtmlTab';
 import { JsonTreeTab } from './it-toolbox/JsonTreeTab';
 import { TimestampTab } from './it-toolbox/TimestampTab';
@@ -24,6 +25,7 @@ export type TabId =
   | 'url'
   | 'base64'
   | 'html'
+  | 'escape'
   | 'regex'
   | 'qr-gen'
   | 'crypto-gen'
@@ -37,6 +39,7 @@ const ALL_TABS: TabId[] = [
   'url',
   'base64',
   'html',
+  'escape',
   'regex',
   'timestamp',
   'qr-gen',
@@ -1090,23 +1093,24 @@ function CryptoGenTab({ t }: { t: ReturnType<typeof getT> }) {
   );
 }
 
-const TAB_STYLES: Record<TabId, { active: string; icon: string }> = {
-  jwt: { active: 'text-violet-500 bg-violet-500/10', icon: 'token' },
-  json: { active: 'text-accent bg-accent/10', icon: 'data_object' },
-  'json-tree': { active: 'text-indigo-500 bg-indigo-500/10', icon: 'account_tree' },
-  url: { active: 'text-emerald-500 bg-emerald-500/10', icon: 'link' },
-  base64: { active: 'text-amber-500 bg-amber-500/10', icon: 'code' },
-  html: { active: 'text-orange-500 bg-orange-500/10', icon: 'html' },
-  regex: { active: 'text-rose-500 bg-rose-500/10', icon: 'pattern' },
-  timestamp: { active: 'text-teal-500 bg-teal-500/10', icon: 'schedule' },
-  'qr-gen': { active: 'text-cyan-500 bg-cyan-500/10', icon: 'qr_code_2' },
-  'crypto-gen': { active: 'text-slate-500 bg-slate-500/10', icon: 'tag' },
+const TAB_STYLES: Record<TabId, { active: string; icon: string; tone: string; chip: string }> = {
+  jwt: { active: 'text-violet-500 bg-violet-500/15 ring-1 ring-violet-500/25', icon: 'token', tone: 'text-violet-500', chip: 'from-violet-500/25 to-violet-500/5' },
+  json: { active: 'text-accent bg-accent/15 ring-1 ring-accent/25', icon: 'data_object', tone: 'text-accent', chip: 'from-indigo-400/25 to-indigo-400/5' },
+  'json-tree': { active: 'text-indigo-500 bg-indigo-500/15 ring-1 ring-indigo-500/25', icon: 'account_tree', tone: 'text-indigo-500', chip: 'from-indigo-500/25 to-indigo-500/5' },
+  url: { active: 'text-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/25', icon: 'link', tone: 'text-emerald-500', chip: 'from-emerald-500/25 to-emerald-500/5' },
+  base64: { active: 'text-amber-500 bg-amber-500/15 ring-1 ring-amber-500/25', icon: 'code', tone: 'text-amber-500', chip: 'from-amber-500/25 to-amber-500/5' },
+  html: { active: 'text-orange-500 bg-orange-500/15 ring-1 ring-orange-500/25', icon: 'html', tone: 'text-orange-500', chip: 'from-orange-500/25 to-orange-500/5' },
+  escape: { active: 'text-fuchsia-500 bg-fuchsia-500/15 ring-1 ring-fuchsia-500/25', icon: 'format_quote', tone: 'text-fuchsia-500', chip: 'from-fuchsia-500/25 to-fuchsia-500/5' },
+  regex: { active: 'text-rose-500 bg-rose-500/15 ring-1 ring-rose-500/25', icon: 'pattern', tone: 'text-rose-500', chip: 'from-rose-500/25 to-rose-500/5' },
+  timestamp: { active: 'text-teal-500 bg-teal-500/15 ring-1 ring-teal-500/25', icon: 'schedule', tone: 'text-teal-500', chip: 'from-teal-500/25 to-teal-500/5' },
+  'qr-gen': { active: 'text-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/25', icon: 'qr_code_2', tone: 'text-cyan-500', chip: 'from-cyan-500/25 to-cyan-500/5' },
+  'crypto-gen': { active: 'text-slate-500 bg-slate-500/15 ring-1 ring-slate-400/20', icon: 'tag', tone: 'text-slate-500', chip: 'from-slate-400/20 to-slate-400/5' },
 };
 
 type NavGroupId = 'convert' | 'inspect' | 'generate';
 
 const NAV_GROUPS: { id: NavGroupId; items: TabId[] }[] = [
-  { id: 'convert', items: ['jwt', 'json', 'json-tree', 'url', 'base64', 'html'] },
+  { id: 'convert', items: ['jwt', 'json', 'json-tree', 'url', 'base64', 'html', 'escape'] },
   { id: 'inspect', items: ['regex', 'timestamp'] },
   { id: 'generate', items: ['qr-gen', 'crypto-gen'] },
 ];
@@ -1131,6 +1135,8 @@ function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
       return 'Base64';
     case 'html':
       return tr.itToolboxTabHtml;
+    case 'escape':
+      return tr.itToolboxTabEscape;
     case 'regex':
       return tr.itToolboxTabRegex;
     case 'timestamp':
@@ -1140,6 +1146,39 @@ function tabLabel(id: TabId, tr: ReturnType<typeof getT>): string {
     case 'crypto-gen':
       return tr.itToolboxTabCrypto;
   }
+}
+
+function tabDescription(id: TabId, tr: ReturnType<typeof getT>): string {
+  switch (id) {
+    case 'jwt':
+      return tr.itToolboxDescJwt;
+    case 'json':
+      return tr.itToolboxDescJson;
+    case 'json-tree':
+      return tr.itToolboxDescJsonTree;
+    case 'url':
+      return tr.itToolboxDescUrl;
+    case 'base64':
+      return tr.itToolboxDescBase64;
+    case 'html':
+      return tr.itToolboxDescHtml;
+    case 'escape':
+      return tr.itToolboxDescEscape;
+    case 'regex':
+      return tr.itToolboxDescRegex;
+    case 'timestamp':
+      return tr.itToolboxDescTimestamp;
+    case 'qr-gen':
+      return tr.itToolboxDescQr;
+    case 'crypto-gen':
+      return tr.itToolboxDescCrypto;
+  }
+}
+
+function tabMatchesQuery(id: TabId, tr: ReturnType<typeof getT>, q: string): boolean {
+  if (!q) return true;
+  const extra = id === 'escape' ? 'remove unescape gỡ escape' : '';
+  return `${id} ${tabLabel(id, tr)} ${tabDescription(id, tr)} ${extra}`.toLowerCase().includes(q);
 }
 
 function isTabId(v: string | null): v is TabId {
@@ -1173,6 +1212,15 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
     void chromeStorageAdapter.setItem(LAST_TAB_KEY, activeTab);
   }, [activeTab, open, tabReady]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   const selectTab = (id: TabId) => {
     setActiveTab(id);
     setToolQuery('');
@@ -1181,55 +1229,90 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
   const q = toolQuery.trim().toLowerCase();
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((id) => !q || tabLabel(id, t).toLowerCase().includes(q)),
+    items: g.items.filter((id) => tabMatchesQuery(id, t, q)),
   })).filter((g) => g.items.length > 0);
 
   if (!open) return null;
 
-  const border = isLight ? 'border-black/10' : 'border-white/10';
-  const dialogBg = isLight ? 'bg-white' : 'bg-sidebar';
+  const border = isLight ? 'border-black/[0.08]' : 'border-white/[0.08]';
   const titleClass = isLight ? 'text-slate-900' : 'text-white';
+  const mutedClass = isLight ? 'text-slate-500' : 'text-text-muted';
   const closeBtn = isLight
     ? 'text-slate-500 hover:text-slate-900 hover:bg-black/[0.06]'
     : 'text-text-muted hover:text-white hover:bg-white/10';
   const navIdle = isLight
-    ? 'text-slate-600 hover:bg-black/[0.04] hover:text-slate-900'
-    : 'text-text-muted hover:bg-white/5 hover:text-white';
-  const sidebarBg = isLight ? 'bg-slate-50/80' : 'bg-black/20';
+    ? 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+    : 'text-text-muted hover:bg-white/[0.06] hover:text-white';
+  const activeStyle = TAB_STYLES[activeTab];
 
   return (
-    <div
-      className={`fixed inset-0 z-[200] flex items-center justify-center p-4 backdrop-blur-sm ${
-        isLight ? 'bg-slate-900/40' : 'bg-black/60'
-      }`}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-5">
+      <div className="absolute inset-0 overflow-hidden" onClick={onClose} aria-hidden>
+        <div className={`absolute inset-0 backdrop-blur-md ${isLight ? 'bg-slate-900/45' : 'bg-black/70'}`} />
+        <div className="absolute -top-24 left-[12%] h-72 w-72 rounded-full bg-violet-500/30 blur-[90px]" />
+        <div className="absolute bottom-[-4rem] right-[8%] h-80 w-80 rounded-full bg-cyan-400/20 blur-[100px]" />
+        <div className="absolute top-1/3 right-1/3 h-56 w-56 rounded-full bg-fuchsia-500/15 blur-[80px]" />
+      </div>
+
       <div
-        className={`${dialogBg} border ${border} rounded-2xl shadow-2xl w-[92vw] max-w-[1100px] h-[86vh] max-h-[86vh] flex flex-col overflow-hidden`}
+        className={`relative flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[1680px] flex-col overflow-hidden rounded-[28px] border ${border} shadow-[0_40px_120px_rgba(0,0,0,0.45)] ${
+          isLight
+            ? 'bg-gradient-to-br from-white via-slate-50 to-indigo-50/70'
+            : 'bg-gradient-to-br from-slate-900 via-sidebar to-[#121826]'
+        }`}
         role="dialog"
         aria-labelledby="it-toolbox-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`flex items-center justify-between px-4 py-3 border-b ${border} flex-shrink-0`}>
-          <h2 id="it-toolbox-title" className={`flex items-center gap-2 text-base font-semibold ${titleClass}`}>
-            <span className="material-symbols-outlined text-accent text-[20px]">build</span>
-            {t.itToolboxTitle}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`p-1.5 rounded-lg transition ${closeBtn}`}
-            aria-label={t.itToolboxClose}
-          >
-            <span className="material-symbols-outlined text-lg">close</span>
-          </button>
+        <div className="h-[3px] w-full flex-shrink-0 bg-gradient-to-r from-violet-500 via-accent to-cyan-400" />
+
+        <div className={`relative flex items-center justify-between gap-4 px-5 py-4 border-b ${border} flex-shrink-0`}>
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.07]"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+          <div className="relative flex items-center gap-3 min-w-0">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400 text-white shadow-[0_10px_30px_rgba(129,140,248,0.45)]">
+              <span className="material-symbols-outlined text-[22px]">handyman</span>
+            </div>
+            <div className="min-w-0">
+              <h2 id="it-toolbox-title" className={`text-[17px] font-semibold tracking-tight ${titleClass}`}>
+                {t.itToolboxTitle}
+              </h2>
+              <p className={`text-[12px] truncate ${mutedClass}`}>{t.itToolboxSubtitle}</p>
+            </div>
+          </div>
+          <div className="relative flex items-center gap-2 flex-shrink-0">
+            <span
+              className={`hidden sm:inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-semibold tracking-wide uppercase ${
+                isLight ? 'border-black/10 bg-white/80 text-slate-500' : 'border-white/10 bg-white/5 text-text-muted'
+              }`}
+            >
+              {t.itToolboxHintEsc}
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`p-2 rounded-xl transition ${closeBtn}`}
+              aria-label={t.itToolboxClose}
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-1 min-h-0">
-          <nav className={`w-52 flex-shrink-0 border-r ${border} ${sidebarBg} flex flex-col`}>
-            <div className="p-2.5">
+          <nav
+            className={`w-60 flex-shrink-0 border-r ${border} flex flex-col ${
+              isLight ? 'bg-white/50' : 'bg-black/25'
+            }`}
+          >
+            <div className="p-3">
               <div className="relative">
-                <span className="material-symbols-outlined text-[16px] absolute left-2 top-1/2 -translate-y-1/2 text-text-muted">
+                <span className="material-symbols-outlined text-[16px] absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted">
                   search
                 </span>
                 <input
@@ -1237,21 +1320,21 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
                   value={toolQuery}
                   onChange={(e) => setToolQuery(e.target.value)}
                   placeholder={t.itToolboxSearchTools}
-                  className={`w-full pl-7 pr-2 py-1.5 rounded-lg border text-[11px] ${
+                  className={`w-full pl-8 pr-2 py-2 rounded-xl border text-[12px] ${
                     isLight
-                      ? 'border-black/10 bg-white text-slate-900 placeholder-slate-400'
-                      : 'border-white/10 bg-white/5 text-white placeholder-text-muted'
+                      ? 'border-black/10 bg-white text-slate-900 placeholder-slate-400 shadow-sm'
+                      : 'border-white/10 bg-white/[0.06] text-white placeholder-text-muted'
                   }`}
                 />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-3">
+            <div className="flex-1 overflow-y-auto px-2.5 pb-4 space-y-4">
               {visibleGroups.map((group) => (
                 <div key={group.id}>
-                  <p className={`px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-text-muted'}`}>
+                  <p className={`px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${mutedClass}`}>
                     {groupLabel(group.id, t)}
                   </p>
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {group.items.map((id) => {
                       const style = TAB_STYLES[id];
                       const active = activeTab === id;
@@ -1260,11 +1343,17 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
                           key={id}
                           type="button"
                           onClick={() => selectTab(id)}
-                          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-[12px] font-medium text-left transition ${
+                          className={`flex items-center gap-2.5 w-full pl-2 pr-2.5 py-1.5 rounded-xl text-[12px] font-medium text-left transition-all ${
                             active ? style.active : navIdle
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${style.chip} ${
+                              active ? style.tone : ''
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
+                          </span>
                           <span className="truncate">{tabLabel(id, t)}</span>
                         </button>
                       );
@@ -1276,13 +1365,29 @@ export default function ITToolboxModal({ open, onClose }: ITToolboxModalProps) {
           </nav>
 
           <div className="flex-1 overflow-hidden p-5 min-h-0 flex flex-col">
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="mb-4 flex-shrink-0 flex items-start gap-3">
+              <span
+                className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${activeStyle.chip} ${activeStyle.tone}`}
+              >
+                <span className="material-symbols-outlined text-[20px]">{activeStyle.icon}</span>
+              </span>
+              <div className="min-w-0">
+                <h3 className={`text-[18px] font-semibold tracking-tight ${titleClass}`}>{tabLabel(activeTab, t)}</h3>
+                <p className={`mt-0.5 text-[12px] ${mutedClass}`}>{tabDescription(activeTab, t)}</p>
+              </div>
+            </div>
+            <div
+              className={`flex-1 min-h-0 overflow-y-auto rounded-2xl border p-4 flex flex-col ${border} ${
+                isLight ? 'bg-white/80 shadow-inner' : 'bg-black/20'
+              }`}
+            >
               {activeTab === 'json' && <JsonTab t={t} />}
               {activeTab === 'json-tree' && <JsonTreeTab t={t} />}
               {activeTab === 'jwt' && <JwtTab t={t} />}
               {activeTab === 'url' && <UrlTab t={t} />}
               {activeTab === 'base64' && <Base64Tab t={t} />}
               {activeTab === 'html' && <HtmlTab t={t} />}
+              {activeTab === 'escape' && <EscapeTab t={t} />}
               {activeTab === 'regex' && <RegexTab t={t} />}
               {activeTab === 'timestamp' && <TimestampTab t={t} />}
               {activeTab === 'qr-gen' && <QrGenTab t={t} />}

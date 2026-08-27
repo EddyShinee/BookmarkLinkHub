@@ -9,11 +9,11 @@ export function useToolboxChrome() {
     isLight,
     t: getT(settings.locale),
     inputClass: isLight
-      ? 'border-black/10 bg-white text-slate-900 placeholder-slate-400 focus:ring-accent/35 focus:border-accent/40'
-      : 'border-white/10 bg-white/5 text-white placeholder-text-muted focus:ring-accent/40 focus:border-accent/40',
+      ? 'border-black/[0.08] bg-white text-slate-900 placeholder-slate-400 focus:ring-accent/40 focus:border-accent/60 shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
+      : 'border-white/[0.08] bg-white/[0.045] text-white placeholder-text-muted focus:ring-accent/50 focus:border-accent/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
     panelClass: isLight
-      ? 'border-black/10 bg-black/[0.03]'
-      : 'border-white/10 bg-white/[0.02]',
+      ? 'border-black/[0.07] bg-gradient-to-br from-white via-white to-slate-50 shadow-[0_8px_30px_rgba(15,23,42,0.06)]'
+      : 'border-white/[0.08] bg-gradient-to-br from-white/[0.08] via-white/[0.04] to-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
     headingClass: isLight ? 'text-slate-900' : 'text-white',
     mutedClass: isLight ? 'text-slate-500' : 'text-text-muted',
     codeClass: isLight
@@ -111,7 +111,7 @@ export function TextArea({
         readOnly={readOnly}
         placeholder={placeholder}
         rows={rows}
-        className={`w-full px-3 py-2 rounded-lg border text-xs focus:ring-2 resize-y font-mono ${inputClass} ${
+        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:ring-2 focus:ring-offset-0 resize-y font-mono leading-relaxed ${inputClass} ${
           showCopy ? 'pr-10' : ''
         } ${error ? 'border-red-500/60' : ''} ${className}`}
       />
@@ -130,25 +130,25 @@ export function ToolboxInput({
   return (
     <input
       {...props}
-      className={`w-full px-3 py-2 rounded-lg border text-xs ${inputClass} ${className}`}
+      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs ${inputClass} ${className}`}
     />
   );
 }
 
 const BTN_VARIANTS = {
-  primary: 'bg-accent/20 border-accent/50 text-accent hover:bg-accent/30 hover:text-white',
-  success: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/30 hover:text-white',
-  warning: 'bg-amber-500/20 border-amber-500/50 text-amber-500 hover:bg-amber-500/30 hover:text-white',
-  info: 'bg-sky-500/20 border-sky-500/50 text-sky-500 hover:bg-sky-500/30 hover:text-white',
+  primary: 'bg-gradient-to-b from-accent/30 to-accent/15 border-accent/50 text-accent hover:from-accent/40 hover:to-accent/20 hover:text-white shadow-[0_8px_20px_rgba(129,140,248,0.18)]',
+  success: 'bg-gradient-to-b from-emerald-500/30 to-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:from-emerald-500/40 hover:to-emerald-500/20 hover:text-white shadow-[0_8px_20px_rgba(16,185,129,0.16)]',
+  warning: 'bg-gradient-to-b from-amber-500/30 to-amber-500/10 border-amber-500/50 text-amber-400 hover:from-amber-500/40 hover:to-amber-500/20 hover:text-white shadow-[0_8px_20px_rgba(245,158,11,0.16)]',
+  info: 'bg-gradient-to-b from-sky-500/30 to-sky-500/10 border-sky-500/50 text-sky-400 hover:from-sky-500/40 hover:to-sky-500/20 hover:text-white shadow-[0_8px_20px_rgba(14,165,233,0.16)]',
   neutral: 'bg-white/5 border-white/10 text-text-secondary hover:bg-white/10 hover:text-white',
 } as const;
 
 const BTN_VARIANTS_LIGHT: typeof BTN_VARIANTS = {
-  primary: 'bg-accent/15 border-accent/40 text-accent hover:bg-accent/25',
-  success: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/20',
-  warning: 'bg-amber-500/10 border-amber-500/40 text-amber-700 hover:bg-amber-500/20',
-  info: 'bg-sky-500/10 border-sky-500/40 text-sky-700 hover:bg-sky-500/20',
-  neutral: 'bg-black/[0.04] border-black/10 text-slate-700 hover:bg-black/[0.07]',
+  primary: 'bg-gradient-to-b from-indigo-50 to-white border-accent/40 text-indigo-600 hover:from-indigo-100 shadow-[0_6px_16px_rgba(99,102,241,0.12)]',
+  success: 'bg-gradient-to-b from-emerald-50 to-white border-emerald-500/40 text-emerald-700 hover:from-emerald-100 shadow-[0_6px_16px_rgba(16,185,129,0.1)]',
+  warning: 'bg-gradient-to-b from-amber-50 to-white border-amber-500/40 text-amber-700 hover:from-amber-100 shadow-[0_6px_16px_rgba(245,158,11,0.1)]',
+  info: 'bg-gradient-to-b from-sky-50 to-white border-sky-500/40 text-sky-700 hover:from-sky-100 shadow-[0_6px_16px_rgba(14,165,233,0.1)]',
+  neutral: 'bg-white border-black/10 text-slate-700 hover:bg-slate-50 shadow-sm',
 };
 
 export function ActionBtn({
@@ -171,8 +171,8 @@ export function ActionBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center rounded-lg font-medium border disabled:opacity-50 transition ${
-        compact ? 'min-w-0 px-2.5 py-1 text-[11px]' : 'min-w-[8.5rem] px-4 py-2 text-sm'
+      className={`flex items-center justify-center rounded-xl font-semibold border disabled:opacity-50 transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 ${
+        compact ? 'min-w-0 px-2.5 py-1 text-[11px]' : 'min-w-[9rem] px-4 py-2.5 text-sm'
       } ${variants[variant]}`}
     >
       {children}
