@@ -26,7 +26,7 @@ export interface SpotlightItem {
 }
 
 export type SpotlightVariant = 'dashboard' | 'overlay' | 'window';
-export type SpotlightShortcutHint = 'dashboard' | 'global' | 'none';
+export type SpotlightShortcutHint = 'dashboard' | 'global' | 'double-shift' | 'none';
 export type SpotlightStatus = 'ready' | 'loading' | 'signed-out';
 
 interface SearchSpotlightModalProps {
@@ -74,7 +74,15 @@ function ShortcutHint({
   if (kind === 'none') return null;
   const mac = isMacPlatform();
   const keys =
-    kind === 'global' ? (mac ? ['⌘', '⇧', 'K'] : ['Ctrl', 'Shift', 'K']) : mac ? ['⌘', 'K'] : ['Ctrl', 'K'];
+    kind === 'double-shift'
+      ? ['⇧', '⇧']
+      : kind === 'global'
+        ? mac
+          ? ['⌘', '⇧', 'K']
+          : ['Ctrl', 'Shift', 'K']
+        : mac
+          ? ['⌘', 'K']
+          : ['Ctrl', 'K'];
   return (
     <span
       className={`${compact ? 'hidden md:inline-flex' : 'inline-flex'} items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-text-muted ${

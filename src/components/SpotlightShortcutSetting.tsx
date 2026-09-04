@@ -89,6 +89,29 @@ export default function SpotlightShortcutSetting({ compact = false }: { compact?
       <p className={`leading-relaxed ${compact ? 'text-[10px] text-[#94a3b8]' : 'text-[11px] text-text-muted'}`}>
         {dashboardHint}
       </p>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="min-w-0">
+          <p className={`text-[10px] font-semibold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+            {t.spotlightDoubleShift}
+          </p>
+          <p className={`mt-0.5 leading-relaxed ${compact ? 'text-[10px] text-[#94a3b8]' : 'text-[11px] text-text-muted'}`}>
+            {t.spotlightDoubleShiftHint}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => s.setSpotlightDoubleShift(s.spotlightDoubleShift === false)}
+          className={`min-w-[44px] shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition ${
+            s.spotlightDoubleShift !== false
+              ? 'bg-accent/20 text-accent border border-accent/40'
+              : isLight
+                ? 'bg-slate-100 text-slate-500 border border-black/10'
+                : 'bg-white/10 text-text-muted hover:bg-white/15 border border-white/10'
+          }`}
+        >
+          {s.spotlightDoubleShift !== false ? t.on : t.off}
+        </button>
+      </div>
     </div>
   );
 }

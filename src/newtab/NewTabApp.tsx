@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { SettingsProvider, useSettings } from '../contexts/SettingsContext';
 import { getT } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
+import { useDoubleShiftShortcut } from '../hooks/useDoubleShiftShortcut';
+import { LH_REQUEST_SPOTLIGHT } from '../lib/spotlightMessages';
 import Dashboard from '../pages/Dashboard';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
@@ -46,6 +48,16 @@ function HomeRoute({
   return <Landing />;
 }
 
+function SpotlightDoubleShiftBridge() {
+  const { spotlightDoubleShift } = useSettings();
+  const onTrigger = useCallback(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+    chrome.runtime.sendMessage({ type: LH_REQUEST_SPOTLIGHT });
+  }, []);
+  useDoubleShiftShortcut(onTrigger, spotlightDoubleShift !== false);
+  return null;
+}
+
 export default function NewTabApp() {
   const { session, loading } = useAuth();
   const location = useLocation();
@@ -79,6 +91,7 @@ export default function NewTabApp() {
 
   return (
     <SettingsProvider>
+      <SpotlightDoubleShiftBridge />
       <Routes>
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />

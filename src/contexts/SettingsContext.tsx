@@ -46,6 +46,7 @@ interface SettingsContextValue extends AppSettings {
   setAutoBackgroundMorningQuery: (v: string | null) => void;
   setAutoBackgroundNoonQuery: (v: string | null) => void;
   setAutoBackgroundEveningQuery: (v: string | null) => void;
+  setSpotlightDoubleShift: (v: boolean) => void;
   persist: () => void;
 }
 
@@ -209,6 +210,7 @@ export function SettingsProvider({
     setAutoBackgroundMorningQuery: (v) => update({ autoBackgroundMorningQuery: v }),
     setAutoBackgroundNoonQuery: (v) => update({ autoBackgroundNoonQuery: v }),
     setAutoBackgroundEveningQuery: (v) => update({ autoBackgroundEveningQuery: v }),
+    setSpotlightDoubleShift: (v) => update({ spotlightDoubleShift: v }),
     persist: () => persist(settings),
   };
 
