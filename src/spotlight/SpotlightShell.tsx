@@ -104,7 +104,9 @@ export default function SpotlightShell({
       onClose={onClose}
       onOpen={handleOpen}
       variant={variant}
-      shortcutHint="global"
+      shortcutHint={
+        variant === 'overlay' && settings.spotlightDoubleShift !== false ? 'double-shift' : 'global'
+      }
       status={status}
       onOpenLinkHub={handleOpenLinkHub}
     />

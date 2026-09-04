@@ -1,6 +1,8 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { SettingsProvider } from '../contexts/SettingsContext';
+import { createDoubleShiftDetector } from '../lib/doubleShift';
 import { isSpotlightToggleMessage } from '../lib/spotlightMessages';
+import { readDoubleShiftEnabled, subscribeDoubleShiftEnabled } from '../lib/spotlightShortcut';
 import SpotlightShell from '../spotlight/SpotlightShell';
 import overlayCss from '../styles/globals.css?inline';
 
@@ -99,4 +101,14 @@ function bootOverlay() {
     toggle();
     sendResponse({ ok: true });
   });
+
+  let stopDoubleShift: (() => void) | null = null;
+  const syncDoubleShift = (enabled: boolean) => {
+    stopDoubleShift?.();
+    stopDoubleShift = null;
+    if (!enabled) return;
+    stopDoubleShift = createDoubleShiftDetector(toggle);
+  };
+  void readDoubleShiftEnabled().then(syncDoubleShift);
+  subscribeDoubleShiftEnabled(syncDoubleShift);
 }

@@ -1,3 +1,4 @@
+import { SETTINGS_STORAGE_KEY } from './settings';
 import { SPOTLIGHT_COMMAND, SPOTLIGHT_SHORTCUTS_URL } from './spotlightMessages';
 
 export type SpotlightCommandShortcut = {
@@ -48,4 +49,39 @@ export function openChromeShortcutsPage(): void {
     return;
   }
   window.open(SPOTLIGHT_SHORTCUTS_URL, '_blank', 'noopener,noreferrer');
+}
+
+export function isDoubleShiftEnabledFromStored(raw: unknown): boolean {
+  if (raw == null) return true;
+  let parsed: { spotlightDoubleShift?: boolean } | null = null;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw) as { spotlightDoubleShift?: boolean };
+    } catch {
+      return true;
+    }
+  } else if (typeof raw === 'object') {
+    parsed = raw as { spotlightDoubleShift?: boolean };
+  }
+  return parsed?.spotlightDoubleShift !== false;
+}
+
+export async function readDoubleShiftEnabled(): Promise<boolean> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return true;
+  try {
+    const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
+    return isDoubleShiftEnabledFromStored(stored[SETTINGS_STORAGE_KEY]);
+  } catch {
+    return true;
+  }
+}
+
+export function subscribeDoubleShiftEnabled(onChange: (enabled: boolean) => void): () => void {
+  if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return () => undefined;
+  const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+    if (area !== 'local' || !changes[SETTINGS_STORAGE_KEY]) return;
+    onChange(isDoubleShiftEnabledFromStored(changes[SETTINGS_STORAGE_KEY].newValue));
+  };
+  chrome.storage.onChanged.addListener(listener);
+  return () => chrome.storage.onChanged.removeListener(listener);
 }

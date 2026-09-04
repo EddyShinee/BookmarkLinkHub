@@ -1,5 +1,10 @@
 import { canInjectSpotlight, isOwnExtensionPage } from '../lib/canInjectSpotlight';
-import { isSpotlightOpenUrlMessage, LH_TOGGLE_SPOTLIGHT, SPOTLIGHT_COMMAND } from '../lib/spotlightMessages';
+import {
+  isSpotlightOpenUrlMessage,
+  isSpotlightRequestMessage,
+  LH_TOGGLE_SPOTLIGHT,
+  SPOTLIGHT_COMMAND,
+} from '../lib/spotlightMessages';
 import spotlightOverlayScript from '../content/spotlightOverlay.tsx?script';
 
 const NEWTAB_PATH = '/src/newtab/index.html';
@@ -40,6 +45,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (isSpotlightOpenUrlMessage(msg)) {
     void openSpotlightUrl(msg, sender).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  if (isSpotlightRequestMessage(msg)) {
+    void toggleSpotlightCommand().then(() => sendResponse({ ok: true }));
     return true;
   }
 
