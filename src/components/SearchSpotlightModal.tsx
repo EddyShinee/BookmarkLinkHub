@@ -25,12 +25,78 @@ export interface SpotlightItem {
   updatedAt?: string;
 }
 
+export type SpotlightVariant = 'dashboard' | 'overlay' | 'window';
+export type SpotlightShortcutHint = 'dashboard' | 'global' | 'double-shift' | 'none';
+export type SpotlightStatus = 'ready' | 'loading' | 'signed-out';
+
 interface SearchSpotlightModalProps {
   open: boolean;
   items: SpotlightItem[];
   onClose: () => void;
   /** `newTab: true` → luôn mở tab mới (Ctrl/⌘+Enter). */
   onOpen: (url: string, options?: { newTab?: boolean }) => void;
+  variant?: SpotlightVariant;
+  shortcutHint?: SpotlightShortcutHint;
+  status?: SpotlightStatus;
+  onOpenLinkHub?: () => void;
+}
+
+function isMacPlatform(): boolean {
+  return typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC');
+}
+
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="text-accent flex-shrink-0">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M20 20L16.5 16.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ShortcutHint({
+  kind,
+  compact,
+  isLight,
+}: {
+  kind: SpotlightShortcutHint;
+  compact: boolean;
+  isLight: boolean;
+}) {
+  if (kind === 'none') return null;
+  const mac = isMacPlatform();
+  const keys =
+    kind === 'double-shift'
+      ? ['⇧', '⇧']
+      : kind === 'global'
+        ? mac
+          ? ['⌘', '⇧', 'K']
+          : ['Ctrl', 'Shift', 'K']
+        : mac
+          ? ['⌘', 'K']
+          : ['Ctrl', 'K'];
+  return (
+    <span
+      className={`${compact ? 'hidden md:inline-flex' : 'inline-flex'} items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-text-muted ${
+        isLight ? 'border-black/15' : 'border-white/15'
+      }`}
+    >
+      {keys.map((key, i) => (
+        <React.Fragment key={`${key}-${i}`}>
+          {i > 0 && <span>+</span>}
+          <span className="text-[10px]">{key}</span>
+        </React.Fragment>
+      ))}
+    </span>
+  );
 }
 
 function Highlight({ text, needle }: { text: string; needle: string }) {
@@ -71,6 +137,10 @@ export default function SearchSpotlightModal({
   items,
   onClose,
   onOpen,
+  variant = 'dashboard',
+  shortcutHint = 'dashboard',
+  status = 'ready',
+  onOpenLinkHub,
 }: SearchSpotlightModalProps) {
   const settings = useSettings();
   const t = getT(settings.locale);
@@ -78,6 +148,7 @@ export default function SearchSpotlightModal({
   const uid = useId().replace(/:/g, '');
   const listboxId = `${uid}-spotlight-lb`;
   const optionPrefix = `${uid}-spotlight-opt`;
+  const isWindow = variant === 'window';
 
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -150,11 +221,21 @@ export default function SearchSpotlightModal({
 
   useEffect(() => {
     if (!sliced.length) return;
-    const container = listRef.current;
-    if (!container) return;
-    const el = document.getElementById(`${optionPrefix}-${activeIndex}`);
+    const el = listRef.current?.querySelector(`[data-spotlight-index="${activeIndex}"]`);
     el?.scrollIntoView({ block: 'nearest' });
-  }, [activeIndex, sliced, optionPrefix]);
+  }, [activeIndex, sliced]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, onClose]);
 
   const highlightNeedle = parsed.text.trim() || query.trim();
 
@@ -223,23 +304,29 @@ export default function SearchSpotlightModal({
 
   const hasFilters = !!(parsed.site || parsed.board || parsed.tag);
   const hasText = !!normalizeSearchString(parsed.text);
-  const isRecentMode = !hasText && !hasFilters;
+  const isRecentMode = !hasText && !hasFilters && status === 'ready';
   const total = displayRows.length;
   const shown = sliced.length;
-  const newTabHint =
-    typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC')
-      ? t.searchOpenNewTabHintMac
-      : t.searchOpenNewTabHint;
+  const newTabHint = isMacPlatform() ? t.searchOpenNewTabHintMac : t.searchOpenNewTabHint;
+  const showList = status === 'ready';
 
   return (
     <div
-      className="fixed inset-0 z-[240] flex items-start justify-center pt-[12vh] px-4 backdrop-blur-sm"
-      style={{ backgroundColor: 'var(--backdrop-strong)' }}
-      onClick={onClose}
+      className={
+        isWindow
+          ? 'fixed inset-0 z-[240] flex items-stretch justify-center'
+          : 'fixed inset-0 z-[240] flex items-start justify-center pt-[12vh] px-4 backdrop-blur-sm'
+      }
+      style={isWindow ? undefined : { backgroundColor: 'var(--backdrop-strong)' }}
+      onClick={isWindow ? undefined : onClose}
     >
       <div
-        className={`spotlight-panel-in w-full max-w-2xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ${
-          isLight ? 'border-black/10 shadow-black/15' : 'border-white/10'
+        className={`spotlight-panel-in overflow-hidden flex flex-col ${
+          isWindow
+            ? 'w-full h-full max-h-none rounded-none border-0 shadow-none'
+            : `w-full max-w-2xl rounded-2xl border shadow-2xl max-h-[85vh] ${
+                isLight ? 'border-black/10 shadow-black/15' : 'border-white/10'
+              }`
         }`}
         style={{ backgroundColor: 'var(--surface-modal)' }}
         onClick={(e) => e.stopPropagation()}
@@ -252,9 +339,7 @@ export default function SearchSpotlightModal({
             isLight ? 'border-black/10' : 'border-white/10'
           }`}
         >
-          <span className="material-symbols-outlined text-[18px] text-accent" aria-hidden>
-            search
-          </span>
+          <SearchIcon />
           <input
             ref={inputRef}
             type="text"
@@ -264,23 +349,18 @@ export default function SearchSpotlightModal({
             placeholder={t.searchPlaceholder}
             autoComplete="off"
             spellCheck={false}
+            disabled={status !== 'ready'}
             aria-controls={listboxId}
-            aria-expanded={sliced.length > 0}
-            aria-activedescendant={sliced.length > 0 ? `${optionPrefix}-${activeIndex}` : undefined}
+            aria-expanded={showList && sliced.length > 0}
+            aria-activedescendant={
+              showList && sliced.length > 0 ? `${optionPrefix}-${activeIndex}` : undefined
+            }
             aria-autocomplete="list"
-            className={`flex-1 bg-transparent border-none outline-none text-sm placeholder-text-muted ${
+            className={`flex-1 bg-transparent border-none outline-none text-sm placeholder-text-muted disabled:opacity-60 ${
               isLight ? 'text-slate-900 placeholder:text-slate-500' : 'text-white'
             }`}
           />
-          <span
-            className={`hidden md:inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] text-text-muted ${
-              isLight ? 'border-black/15' : 'border-white/15'
-            }`}
-          >
-            <span className="text-[10px]">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘' : 'Ctrl'}</span>
-            <span>+</span>
-            <span className="text-[10px]">K</span>
-          </span>
+          <ShortcutHint kind={shortcutHint} compact={variant === 'dashboard'} isLight={isLight} />
           <button
             ref={closeButtonRef}
             type="button"
@@ -291,20 +371,46 @@ export default function SearchSpotlightModal({
             }`}
             aria-label={t.close}
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <CloseIcon />
           </button>
         </div>
 
-        <p className="px-4 pt-2 text-[10px] text-text-muted/90 leading-snug flex-shrink-0">{t.searchFilterHint}</p>
+        {showList && (
+          <p className="px-4 pt-2 text-[10px] text-text-muted/90 leading-snug flex-shrink-0">{t.searchFilterHint}</p>
+        )}
 
         <div
           ref={listRef}
           id={listboxId}
           role="listbox"
           aria-label={t.searchAriaLabel}
-          className="flex-1 min-h-0 max-h-[min(52vh,480px)] overflow-y-auto overflow-x-hidden py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+            isWindow ? '' : 'max-h-[min(52vh,480px)]'
+          }`}
         >
-          {isRecentMode && sliced.length > 0 && (
+          {status === 'loading' && (
+            <p className="px-4 py-4 text-xs text-text-muted" role="status">
+              {t.searchLoadingItems}
+            </p>
+          )}
+          {status === 'signed-out' && (
+            <div className="px-4 py-8 text-center" role="status">
+              <p className={`text-sm font-medium ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {t.searchSignedOutTitle}
+              </p>
+              <p className="mt-1.5 text-xs text-text-muted leading-relaxed">{t.searchSignedOutBody}</p>
+              {onOpenLinkHub && (
+                <button
+                  type="button"
+                  onClick={onOpenLinkHub}
+                  className="mt-4 inline-flex items-center justify-center rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  {t.searchSignedOutCta}
+                </button>
+              )}
+            </div>
+          )}
+          {showList && isRecentMode && sliced.length > 0 && (
             <p
               className={`px-4 py-1 text-[10px] font-semibold uppercase tracking-wider ${
                 isLight ? 'text-slate-500' : 'text-text-muted'
@@ -313,11 +419,11 @@ export default function SearchSpotlightModal({
               {t.searchRecentSection}
             </p>
           )}
-          {sliced.length === 0 ? (
+          {showList && sliced.length === 0 ? (
             <p className="px-4 py-4 text-xs text-text-muted" role="status">
               {announceEmpty ? t.searchNoResults : t.searchTypeToSearch}
             </p>
-          ) : (
+          ) : showList ? (
             <ul className="py-1" role="presentation">
               {sliced.map((item, index) => {
                 const isActive = index === activeIndex;
@@ -374,10 +480,10 @@ export default function SearchSpotlightModal({
                 );
               })}
             </ul>
-          )}
+          ) : null}
         </div>
 
-        {visibleCount < total && (
+        {showList && visibleCount < total && (
           <div className={`px-4 py-2 border-t flex-shrink-0 ${isLight ? 'border-black/[0.06]' : 'border-white/5'}`}>
             <button
               type="button"
@@ -402,14 +508,18 @@ export default function SearchSpotlightModal({
             ↑↓ {t.searchOr} Enter · {newTabHint} · Esc {t.searchToClose}
           </p>
           <p className="text-[10px] text-text-muted tabular-nums text-right">
-            {total === 0
-              ? t.searchResultsCount.replace('{n}', '0')
-              : shown < total
-                ? t.searchResultsShowing.replace('{shown}', String(shown)).replace('{total}', String(total))
-                : t.searchResultsCount.replace('{n}', String(total))}
+            {status !== 'ready'
+              ? ''
+              : total === 0
+                ? t.searchResultsCount.replace('{n}', '0')
+                : shown < total
+                  ? t.searchResultsShowing.replace('{shown}', String(shown)).replace('{total}', String(total))
+                  : t.searchResultsCount.replace('{n}', String(total))}
           </p>
         </div>
-        <p className="px-4 pb-2.5 text-[10px] text-text-muted/80">{t.searchAcrossAllBoards}</p>
+        {showList && (
+          <p className="px-4 pb-2.5 text-[10px] text-text-muted/80">{t.searchAcrossAllBoards}</p>
+        )}
       </div>
     </div>
   );

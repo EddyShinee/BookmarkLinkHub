@@ -9,7 +9,33 @@ const manifest = {
   description: 'Trang quản lý bookmark khi mở tab mới — đồng bộ đám mây',
   version: `${major}.${minor}.${patch}`,
   version_name: version,
-  permissions: ['storage', 'contextMenus', 'activeTab', 'tabs', 'windows', 'videoCapture', 'desktopCapture'],
+  permissions: [
+    'storage',
+    'contextMenus',
+    'activeTab',
+    'tabs',
+    'windows',
+    'scripting',
+    'videoCapture',
+    'desktopCapture',
+  ],
+  commands: {
+    'open-spotlight': {
+      suggested_key: {
+        default: 'Ctrl+Shift+K',
+        mac: 'Command+Shift+K',
+      },
+      description: 'Open LinkHub Spotlight search',
+    },
+  },
+  content_scripts: [
+    {
+      matches: ['http://*/*', 'https://*/*'],
+      js: ['src/content/spotlightOverlay.tsx'],
+      run_at: 'document_idle',
+      all_frames: false,
+    },
+  ],
   host_permissions: ['https://*.supabase.co/*', '<all_urls>'],
   // Khi mở tab mới → hiển thị trang quản lý bookmark (không phải popup)
   chrome_url_overrides: {

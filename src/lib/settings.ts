@@ -50,6 +50,8 @@ export interface AppSettings {
   autoBackgroundMorningQuery?: string | null;
   autoBackgroundNoonQuery?: string | null;
   autoBackgroundEveningQuery?: string | null;
+  /** Double Shift mở Spotlight trên trang http(s) và Dashboard. */
+  spotlightDoubleShift?: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoBackgroundMorningQuery: null,
   autoBackgroundNoonQuery: null,
   autoBackgroundEveningQuery: null,
+  spotlightDoubleShift: true,
 };
 
 export const BACKGROUND_COLORS = [

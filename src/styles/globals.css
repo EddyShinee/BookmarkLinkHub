@@ -31,6 +31,42 @@ html.light {
   --backdrop-strong: rgba(15, 23, 42, 0.45);
 }
 
+/*
+ * Shadow-DOM overlay: :root / html.light trên trang host không áp vào cây Spotlight.
+ * Gắn class này lên wrapper trong shadow root.
+ */
+.lh-spotlight-root {
+  --color-main: #0f172a;
+  --color-sidebar: #1e293b;
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-overlay: rgba(255, 255, 255, 0.05);
+  --color-overlay-hover: rgba(255, 255, 255, 0.1);
+  --surface-modal: rgba(30, 41, 59, 0.98);
+  --backdrop-strong: rgba(0, 0, 0, 0.6);
+  color: var(--color-text-primary);
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lh-spotlight-root.light {
+  --color-main: #f0f0f0;
+  --color-sidebar: #f0f0f0;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #525252;
+  --color-text-muted: #737373;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-overlay: rgba(0, 0, 0, 0.02);
+  --color-overlay-hover: rgba(0, 0, 0, 0.06);
+  --surface-modal: #ffffff;
+  --backdrop-strong: rgba(15, 23, 42, 0.45);
+  color-scheme: light;
+}
+
 html,
 body {
   height: 100%;

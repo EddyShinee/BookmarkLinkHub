@@ -31,6 +31,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Toast, { type ToastType } from '../components/Toast';
 import SearchSpotlightModal, { type SpotlightItem } from '../components/SearchSpotlightModal';
 import { useSearchShortcut } from '../hooks/useSearchShortcut';
+import { isSpotlightToggleMessage } from '../lib/spotlightMessages';
 import { getT } from '../lib/i18n';
 import type { CategorySortOrder } from '../lib/settings';
 import { supabase } from '../lib/supabaseClient';
@@ -521,6 +522,24 @@ export default function Dashboard({
   }, [loadSearchData]);
 
   useSearchShortcut(openSpotlight);
+
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.onMessage) return;
+    const listener = (
+      msg: unknown,
+      _sender: chrome.runtime.MessageSender,
+      sendResponse: (response: { ok: boolean }) => void
+    ) => {
+      if (!isSpotlightToggleMessage(msg)) return;
+      setSpotlightOpen((prev) => {
+        if (!prev) loadSearchData();
+        return !prev;
+      });
+      sendResponse({ ok: true });
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, [loadSearchData]);
 
   const resolveQuickCaptureTab = useCallback(async (): Promise<{ url: string; title: string } | null> => {
     if (typeof chrome === 'undefined' || !chrome.tabs?.query) {

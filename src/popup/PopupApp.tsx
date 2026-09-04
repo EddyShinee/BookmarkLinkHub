@@ -9,6 +9,7 @@ import { readPopupSearchCache, writePopupSearchCache, type PopupSearchResult } f
 import { readPopupUiState, writePopupUiState } from '../lib/popupUiState';
 import { getHostnameCached, getHostnameOrUrl } from '../lib/urlCache';
 import Toast from '../components/Toast';
+import SpotlightShortcutSetting from '../components/SpotlightShortcutSetting';
 import { generateTOTP, getTimeRemaining } from '../lib/totp';
 
 const NEWTAB_PATH = 'src/newtab/index.html';
@@ -669,6 +670,13 @@ function PopupSettingsColumn() {
             {t.currentTab}
           </button>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+          {t.spotlightShortcut}
+        </p>
+        <SpotlightShortcutSetting compact />
       </div>
 
       <div className="space-y-1">

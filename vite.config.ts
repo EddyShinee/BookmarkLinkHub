@@ -18,4 +18,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': '/src' },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        spotlight: 'src/spotlight/index.html',
+      },
+    },
+  },
 });
