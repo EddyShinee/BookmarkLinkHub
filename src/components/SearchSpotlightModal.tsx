@@ -198,12 +198,53 @@ export default function SearchSpotlightModal({
     setQuery('');
     setActiveIndex(0);
     setVisibleCount(PAGE_SIZE);
-    const id = window.setTimeout(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }, 10);
-    return () => window.clearTimeout(id);
   }, [open]);
+
+  // Focus sau khi mở (và lại khi status sẵn sàng nếu chưa focus được).
+  // Overlay/shadow DOM và phím tắt đôi khi cần vài lần thử mới nhận focus.
+  useEffect(() => {
+    if (!open || status === 'signed-out') return;
+
+    let cancelled = false;
+    let tries = 0;
+    const maxTries = 12;
+    const timers: number[] = [];
+
+    const isInputFocused = (el: HTMLInputElement) => {
+      const root = el.getRootNode() as Document | ShadowRoot;
+      return (
+        document.activeElement === el ||
+        ('activeElement' in root && root.activeElement === el)
+      );
+    };
+
+    const tryFocus = () => {
+      if (cancelled) return;
+      const el = inputRef.current;
+      if (el && !el.disabled) {
+        if (isInputFocused(el)) return;
+        el.focus({ preventScroll: true });
+        if (isInputFocused(el)) {
+          if (!el.value) el.select();
+          return;
+        }
+      }
+      tries += 1;
+      if (tries < maxTries) {
+        timers.push(window.setTimeout(tryFocus, tries < 3 ? 16 : 50));
+      }
+    };
+
+    timers.push(window.setTimeout(tryFocus, 0));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(tryFocus);
+    });
+
+    return () => {
+      cancelled = true;
+      timers.forEach((id) => window.clearTimeout(id));
+    };
+  }, [open, status]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -349,7 +390,8 @@ export default function SearchSpotlightModal({
             placeholder={t.searchPlaceholder}
             autoComplete="off"
             spellCheck={false}
-            disabled={status !== 'ready'}
+            autoFocus={open && status !== 'signed-out'}
+            disabled={status === 'signed-out'}
             aria-controls={listboxId}
             aria-expanded={showList && sliced.length > 0}
             aria-activedescendant={

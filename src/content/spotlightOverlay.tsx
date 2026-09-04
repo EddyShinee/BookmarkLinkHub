@@ -39,6 +39,15 @@ function bootOverlay() {
     else host.removeAttribute('data-open');
   };
 
+  const focusSearchInput = () => {
+    const mount = host?.shadowRoot?.getElementById('lh-root');
+    const input = mount?.querySelector<HTMLInputElement>('input[type="text"]:not([disabled])');
+    if (!input) return false;
+    input.focus({ preventScroll: true });
+    if (!input.value) input.select();
+    return host?.shadowRoot?.activeElement === input;
+  };
+
   const ensureMount = (): HTMLElement => {
     const existing = document.getElementById(HOST_ID);
     if (existing?.shadowRoot) {
@@ -94,6 +103,19 @@ function bootOverlay() {
   const toggle = () => {
     open = !open;
     render();
+    if (!open) return;
+    // Double Shift / command có thể mở trước khi React commit + Shift còn giữ —
+    // thử focus vài lần sau khi panel hiện.
+    let tries = 0;
+    const tick = () => {
+      if (!open) return;
+      if (focusSearchInput()) return;
+      tries += 1;
+      if (tries < 15) window.setTimeout(tick, tries < 4 ? 20 : 40);
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(tick);
+    });
   };
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

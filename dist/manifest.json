@@ -2,16 +2,39 @@
   "manifest_version": 3,
   "name": "LinkHub Bookmark Manager",
   "description": "Trang quản lý bookmark khi mở tab mới — đồng bộ đám mây",
-  "version": "0.2.0",
-  "version_name": "0.2.0",
+  "version": "0.2.7",
+  "version_name": "0.2.7",
   "permissions": [
     "storage",
     "contextMenus",
     "activeTab",
     "tabs",
     "windows",
+    "scripting",
     "videoCapture",
     "desktopCapture"
+  ],
+  "commands": {
+    "open-spotlight": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open LinkHub Spotlight search"
+    }
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/spotlightOverlay.tsx-loader-DYbUBphT.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
@@ -39,5 +62,23 @@
     "16": "icons/16.png",
     "48": "icons/48.png",
     "128": "icons/128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "resources": [
+        "assets/client-C15rPxGy.js",
+        "assets/useAuth-Cx7BoICU.js",
+        "assets/SearchSpotlightModal-rgjZZvJj.js",
+        "assets/spotlightMessages-CjavUdYb.js",
+        "assets/spotlightShortcut-DQvj743X.js",
+        "assets/SpotlightShell-CIZyAeJ4.js",
+        "assets/spotlightOverlay.tsx-CtIXjeMa.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
 }
