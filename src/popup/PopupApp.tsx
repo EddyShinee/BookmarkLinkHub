@@ -191,11 +191,15 @@ export default function PopupApp() {
       </nav>
 
       {showSettings ? (
-        <main className="flex-1 overflow-y-auto px-3 pt-3 pb-4">
+        <main className="flex-1 overflow-y-auto px-3 pt-3 pb-4 min-h-0">
           <PopupSettingsColumn />
         </main>
       ) : (
-        <main className="flex-1 overflow-y-auto px-2 pt-2 pb-20 relative min-h-0">
+        <main
+          className={`flex-1 min-h-0 relative ${
+            activeTab === 'authenticator' ? 'overflow-hidden' : 'overflow-y-auto px-2 pt-2 pb-20'
+          }`}
+        >
           {activeTab === 'authenticator' && (
             <PopupAuthenticatorTab userId={userId} openNewTab={openNewTab} t={t} />
           )}
@@ -764,6 +768,8 @@ function PopupAuthenticatorTab({
   openNewTab: (q?: string) => void;
   t: ReturnType<typeof getT>;
 }) {
+  const { theme } = useSettings();
+  const isLight = theme === 'light';
   const { entries, loading, hasLoaded } = useAuthenticatorEntries(userId, { cachePolicy: 'cache-first' });
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -773,7 +779,7 @@ function PopupAuthenticatorTab({
 
   if (!userId) {
     return (
-      <div className="py-6 px-3 text-center">
+      <div className="h-full overflow-y-auto py-6 px-3 text-center">
         <p className="text-[#90a4cb] text-sm mb-4">{t.loginToUseAuthenticator}</p>
         <button
           type="button"
@@ -792,7 +798,7 @@ function PopupAuthenticatorTab({
 
   if (entries.length === 0) {
     return (
-      <div className="py-6 px-3 text-center">
+      <div className="h-full overflow-y-auto py-6 px-3 text-center">
         <p className="text-[#90a4cb] text-sm mb-4">{t.noAccountsYet}</p>
         <button
           type="button"
@@ -806,24 +812,31 @@ function PopupAuthenticatorTab({
   }
 
   return (
-    <>
-      <div className="space-y-1 pb-2">
-        {entries.slice(0, 20).map((entry) => (
-          <PopupAuthenticatorRow key={entry.id} entry={entry} t={t} />
-        ))}
+    <div className="relative h-full min-h-0">
+      <div className="h-full overflow-y-auto px-2 pt-2 pb-20">
+        <div className="space-y-1">
+          {entries.slice(0, 20).map((entry) => (
+            <PopupAuthenticatorRow key={entry.id} entry={entry} t={t} />
+          ))}
+        </div>
       </div>
-      <div className="absolute bottom-5 right-5 z-20">
-        <button
-          type="button"
-          onClick={() => openNewTab('?open=authenticator')}
-          className="w-12 h-12 bg-[#256af4] rounded-full shadow-[0_0_20px_-5px_rgba(37,106,244,0.5)] flex items-center justify-center text-white hover:bg-blue-600 active:scale-95 transition-all group"
-          aria-label={t.addAccount}
-        >
-          <span className="material-symbols-outlined text-[24px] group-hover:rotate-90 transition-transform duration-300">add</span>
-        </button>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#151b28] to-transparent pointer-events-none z-10" aria-hidden />
-    </>
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t to-transparent z-10 ${
+          isLight ? 'from-white' : 'from-[#151b28]'
+        }`}
+        aria-hidden
+      />
+      <button
+        type="button"
+        onClick={() => openNewTab('?open=authenticator')}
+        className="absolute bottom-4 right-4 z-20 w-12 h-12 bg-[#256af4] rounded-full shadow-[0_0_20px_-5px_rgba(37,106,244,0.5)] flex items-center justify-center text-white hover:bg-blue-600 active:scale-95 transition-all group"
+        aria-label={t.addAccount}
+      >
+        <span className="material-symbols-outlined text-[24px] group-hover:rotate-90 transition-transform duration-300">
+          add
+        </span>
+      </button>
+    </div>
   );
 }
 
