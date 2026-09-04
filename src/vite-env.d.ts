@@ -6,3 +6,13 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare module '*.css?inline' {
+  const css: string;
+  export default css;
+}
+
+declare module '*?script' {
+  const path: string;
+  export default path;
+}

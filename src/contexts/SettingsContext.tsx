@@ -51,7 +51,14 @@ interface SettingsContextValue extends AppSettings {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
+export function SettingsProvider({
+  children,
+  applyDocumentTheme = true,
+}: {
+  children: React.ReactNode;
+  /** Tắt khi mount trong shadow overlay — không được đụng class `html` của trang host. */
+  applyDocumentTheme?: boolean;
+}) {
   const cachedSettings = useMemo(() => readSettingsSnapshot(), []);
   const [settings, setSettings] = useState<AppSettings>(() =>
     cachedSettings ? { ...DEFAULT_SETTINGS, ...cachedSettings } : DEFAULT_SETTINGS
@@ -126,11 +133,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !applyDocumentTheme) return;
     const root = document.documentElement;
     root.classList.toggle('dark', settings.theme === 'dark');
     root.classList.toggle('light', settings.theme === 'light');
-  }, [loaded, settings.theme]);
+  }, [loaded, settings.theme, applyDocumentTheme]);
 
   const persist = useCallback((next: AppSettings) => {
     chromeStorageAdapter.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
@@ -215,7 +222,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loaded, settings.backgroundImageUrl, settings.landingBackgroundImageUrl]);
 
-  if (!loaded) return null;
+  if (!loaded && applyDocumentTheme) return null;
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

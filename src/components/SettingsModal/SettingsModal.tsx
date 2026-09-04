@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useSettings } from '../../contexts/SettingsContext';
 import { getT } from '../../lib/i18n';
 import { BACKGROUND_COLORS } from '../../lib/settings';
+import SpotlightShortcutSetting from '../SpotlightShortcutSetting';
 
 interface SettingsModalProps {
   open: boolean;
@@ -600,6 +601,11 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                     {t.currentTab}
                   </button>
                 </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.spotlightShortcut}</SettingLabel>
+                <SpotlightShortcutSetting />
               </SettingCard>
             </div>
 
