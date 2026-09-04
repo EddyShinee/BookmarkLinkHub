@@ -1,9 +1,8 @@
 import { canInjectSpotlight, isOwnExtensionPage } from '../lib/canInjectSpotlight';
-import { isSpotlightOpenUrlMessage, LH_TOGGLE_SPOTLIGHT } from '../lib/spotlightMessages';
+import { isSpotlightOpenUrlMessage, LH_TOGGLE_SPOTLIGHT, SPOTLIGHT_COMMAND } from '../lib/spotlightMessages';
 import spotlightOverlayScript from '../content/spotlightOverlay.tsx?script';
 
 const NEWTAB_PATH = '/src/newtab/index.html';
-const SPOTLIGHT_COMMAND = 'open-spotlight';
 const FLOATING_WIDTH = 580;
 const FLOATING_HEIGHT = 520;
 

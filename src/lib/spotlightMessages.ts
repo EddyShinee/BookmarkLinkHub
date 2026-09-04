@@ -1,5 +1,7 @@
 export const LH_TOGGLE_SPOTLIGHT = 'LH_TOGGLE_SPOTLIGHT' as const;
 export const LH_OPEN_URL = 'LH_OPEN_URL' as const;
+export const SPOTLIGHT_COMMAND = 'open-spotlight';
+export const SPOTLIGHT_SHORTCUTS_URL = 'chrome://extensions/shortcuts';
 
 export type SpotlightToggleMessage = {
   type: typeof LH_TOGGLE_SPOTLIGHT;
