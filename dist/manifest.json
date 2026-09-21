@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "LinkHub Bookmark Manager",
   "description": "Trang quản lý bookmark khi mở tab mới — đồng bộ đám mây",
-  "version": "0.2.7",
-  "version_name": "0.2.7",
+  "version": "0.3.0",
+  "version_name": "0.3.0",
   "permissions": [
     "storage",
     "contextMenus",
@@ -26,7 +26,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/spotlightOverlay.tsx-loader-DYbUBphT.js"
+        "assets/spotlightOverlay.tsx-loader-Cngy6XXF.js"
       ],
       "matches": [
         "http://*/*",
@@ -71,12 +71,12 @@
       ],
       "resources": [
         "assets/client-C15rPxGy.js",
-        "assets/useAuth-Cx7BoICU.js",
-        "assets/SearchSpotlightModal-rgjZZvJj.js",
+        "assets/useAuth-C2y-DKwg.js",
+        "assets/SearchSpotlightModal-C_uqgn0E.js",
         "assets/spotlightMessages-CjavUdYb.js",
-        "assets/spotlightShortcut-DQvj743X.js",
-        "assets/SpotlightShell-CIZyAeJ4.js",
-        "assets/spotlightOverlay.tsx-CtIXjeMa.js"
+        "assets/spotlightShortcut-CD_C-oEk.js",
+        "assets/SpotlightShell-13zyfvY_.js",
+        "assets/spotlightOverlay.tsx-BW1RYQdB.js"
       ],
       "use_dynamic_url": false
     }
