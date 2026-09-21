@@ -1,8 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useSettings } from '../contexts/SettingsContext';
 import { getT } from '../lib/i18n';
+import {
+  detectBiometricPlatform,
+  isBiometricAvailable,
+  listBiometricCredentials,
+  unlockWithBiometrics,
+  type BiometricCredentialInfo,
+} from '../lib/biometricAuth';
+import {
+  biometricErrorMessage,
+  biometricMethodIcon,
+  biometricMethodLabel,
+  withMethod,
+} from '../lib/biometricMessages';
 
 export default function Login() {
   const { locale, setLocale, startOnLanding } = useSettings();
@@ -11,7 +24,27 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [biometricCreds, setBiometricCreds] = useState<BiometricCredentialInfo[]>([]);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const navigate = useNavigate();
+
+  const platform = detectBiometricPlatform();
+  const methodLabel = biometricMethodLabel(locale, platform);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [available, creds] = await Promise.all([
+        isBiometricAvailable(),
+        listBiometricCredentials(),
+      ]);
+      if (!active) return;
+      setBiometricCreds(available ? creds : []);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +58,27 @@ export default function Login() {
       setError(e instanceof Error ? e.message : t.loginErrorGeneric);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    setError(null);
+    setBiometricLoading(true);
+    try {
+      const secret = await unlockWithBiometrics();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: secret.email,
+        password: secret.password,
+      });
+      if (error) {
+        setError(t.biometricPasswordOutdated);
+        return;
+      }
+      navigate(startOnLanding ? '/landing' : '/', { replace: true });
+    } catch (e) {
+      setError(biometricErrorMessage(locale, e));
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -101,6 +155,34 @@ export default function Login() {
             {loading ? t.loginLoading : t.loginButton}
           </button>
         </form>
+
+        {biometricCreds.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="h-px flex-1 bg-white/10" />
+              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                {t.searchOr}
+              </span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+            <button
+              type="button"
+              onClick={handleBiometricLogin}
+              disabled={biometricLoading || loading}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm border border-white/15 bg-white/5 text-gray-50 font-medium hover:bg-white/10 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            >
+              <span className="material-symbols-outlined text-[18px] text-primary-300">
+                {biometricMethodIcon(platform)}
+              </span>
+              {biometricLoading
+                ? withMethod(t.biometricLoginLoading, methodLabel)
+                : withMethod(t.biometricLoginButton, methodLabel)}
+            </button>
+            <p className="mt-2 text-center text-[11px] text-slate-400">
+              {biometricCreds.map((c) => c.email).join(', ')}
+            </p>
+          </div>
+        )}
 
         <p className="mt-4 text-center text-[11px] sm:text-xs text-slate-300">
           {t.noAccountQuestion}{' '}

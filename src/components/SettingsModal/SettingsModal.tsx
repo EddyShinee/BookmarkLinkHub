@@ -3,6 +3,7 @@ import { useSettings } from '../../contexts/SettingsContext';
 import { getT } from '../../lib/i18n';
 import { BACKGROUND_COLORS } from '../../lib/settings';
 import SpotlightShortcutSetting from '../SpotlightShortcutSetting';
+import BiometricLoginCard from './BiometricLoginCard';
 
 interface SettingsModalProps {
   open: boolean;
@@ -235,6 +236,11 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                     </button>
                   </div>
                 </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.biometricSectionTitle}</SettingLabel>
+                <BiometricLoginCard />
               </SettingCard>
 
             </div>
