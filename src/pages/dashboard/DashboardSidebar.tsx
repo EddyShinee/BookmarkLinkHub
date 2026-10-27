@@ -79,7 +79,7 @@ export function DashboardSidebar({
         className={`border-r ${borderChrome} flex min-h-0 flex-col z-40 w-64 flex-shrink-0 fixed inset-y-0 left-0 transform transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={chromePanelBackground(settings.headerSidebarColorEffect, settings.theme)}
+        style={chromePanelBackground(settings.headerSidebarColorEffect, settings.theme, settings.backgroundColor)}
       >
         <div className={`h-12 flex items-center justify-between gap-2 px-4 border-b ${borderChrome}`}>
           <div className="flex items-center gap-2 text-accent group cursor-pointer min-w-0">

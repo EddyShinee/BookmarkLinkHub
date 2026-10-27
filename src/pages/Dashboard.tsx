@@ -1578,44 +1578,33 @@ export default function Dashboard({
     ? 'max-w-md mx-auto my-6 rounded-2xl border border-dashed border-black/15 bg-white/80 px-6 py-8 text-center shadow-sm'
     : 'max-w-md mx-auto my-6 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-8 text-center';
   const emptyCategoriesTitleClass = isLightContent ? 'text-sm font-semibold text-slate-900' : 'text-sm font-semibold text-white';
+  const pageBackground = settings.backgroundColor || '#0F172A';
+  const showDashboardImage = settings.backgroundMode === 'image' && !!dashboardBackgroundImageUrl;
+  const imageOverlayAlpha = Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
+    .toString(16)
+    .padStart(2, '0');
 
   return (
     <div
-      className="bg-main font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
+      className="font-display text-text-primary h-screen overflow-hidden flex relative selection:bg-accent selection:text-white"
       style={
-        settings.backgroundMode === 'image' && dashboardBackgroundImageUrl
+        showDashboardImage
           ? {
+              backgroundColor: pageBackground,
               backgroundImage: `url('${dashboardBackgroundImageUrl}')`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',
             }
-          : undefined
+          : { backgroundColor: pageBackground }
       }
     >
-      <div
-        className="absolute inset-0 z-0 backdrop-blur-[2px]"
-        style={{
-          backgroundColor:
-            settings.theme === 'light'
-              ? `rgba(240, 240, 240, ${(settings.backgroundOverlayOpacity ?? 90) / 100})`
-              : `${settings.backgroundColor}${
-                  Math.round(((settings.backgroundOverlayOpacity ?? 90) / 100) * 255)
-                    .toString(16)
-                    .padStart(2, '0')
-                }`,
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0 z-[1]"
-        aria-hidden
-        style={{
-          background:
-            settings.theme === 'light'
-              ? 'radial-gradient(ellipse 90% 55% at 50% -5%, rgba(255,255,255,0.5), transparent 52%), radial-gradient(ellipse 65% 45% at 100% 100%, rgba(0,0,0,0.06), transparent)'
-              : 'radial-gradient(ellipse 88% 50% at 50% -8%, rgba(129,140,248,0.14), transparent 48%), radial-gradient(ellipse 70% 55% at 100% 100%, rgba(0,0,0,0.42), transparent)',
-        }}
-      />
+      {showDashboardImage && (
+        <div
+          className="absolute inset-0 z-0"
+          style={{ backgroundColor: `${pageBackground}${imageOverlayAlpha}` }}
+        />
+      )}
       <DashboardSidebar
         sidebarOpen={sidebarOpen}
         onCloseSidebar={() => setSidebarOpen(false)}

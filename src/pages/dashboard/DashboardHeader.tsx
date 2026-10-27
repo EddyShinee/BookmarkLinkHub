@@ -59,7 +59,7 @@ export function DashboardHeader({
   return (
     <header
       className={`h-12 relative z-[100] flex items-center justify-between px-3 md:px-4 border-b ${borderChrome}`}
-      style={chromePanelBackground(settings.headerSidebarColorEffect, settings.theme)}
+      style={chromePanelBackground(settings.headerSidebarColorEffect, settings.theme, settings.backgroundColor)}
     >
       <div className="flex items-center flex-1 max-w-md">
         <button

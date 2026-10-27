@@ -17,7 +17,7 @@ function SettingLabel({ children }: { children: React.ReactNode }) {
   const light = s.theme === 'light';
   return (
     <label
-      className={`block text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${
+      className={`block text-[11px] font-semibold uppercase tracking-wider mb-2 ${
         light ? 'text-slate-500' : 'text-text-muted'
       }`}
     >
@@ -31,12 +31,23 @@ function SettingCard({ children, className = '' }: { children: React.ReactNode; 
   const light = s.theme === 'light';
   return (
     <div
-      className={`rounded-lg border p-3.5 ${
+      className={`rounded-xl border p-4 ${
         light ? 'border-black/10 bg-white shadow-sm' : 'border-white/10 bg-white/[0.02]'
       } ${className}`}
     >
       {children}
     </div>
+  );
+}
+
+function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const s = useSettings();
+  const light = s.theme === 'light';
+  return (
+    <section className="space-y-3">
+      <h3 className={`text-sm font-semibold tracking-tight ${light ? 'text-slate-900' : 'text-white'}`}>{title}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -100,7 +111,7 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
       onClick={onClose}
     >
       <div
-        className={`rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto border ${
+        className={`rounded-2xl shadow-2xl flex flex-col w-[min(1280px,calc(100vw-1.5rem))] max-h-[min(920px,calc(100vh-1.5rem))] overflow-hidden border ${
           isLight ? 'border-black/10' : 'border-white/10'
         }`}
         style={{ backgroundColor: 'var(--surface-modal)' }}
@@ -109,8 +120,8 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className={`sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b backdrop-blur-md ${
-            isLight ? 'border-black/10 bg-white/95' : 'border-white/10 bg-sidebar/95'
+          className={`flex shrink-0 items-center justify-between px-6 py-4 border-b ${
+            isLight ? 'border-black/10 bg-white' : 'border-white/10 bg-sidebar'
           }`}
         >
           <h2
@@ -134,139 +145,37 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
           </button>
         </div>
 
-        <div className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Cột 1: Ngôn ngữ, Trang bắt đầu & Giao diện */}
-            <div className="space-y-3">
-              <SettingCard>
-                <SettingLabel>{t.language}</SettingLabel>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => s.setLocale('vi')}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.locale === 'vi')}`}
-                  >
-                    {t.vietnamese}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => s.setLocale('en')}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.locale === 'en')}`}
-                  >
-                    {t.english}
-                  </button>
-                </div>
-              </SettingCard>
-
-              <SettingCard>
-                <SettingLabel>{t.startPage}</SettingLabel>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => s.setStartOnLanding(true)}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.startOnLanding)}`}
-                  >
-                    {t.startPageLanding}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => s.setStartOnLanding(false)}
-                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(!s.startOnLanding)}`}
-                  >
-                    {t.startPageBookmarks}
-                  </button>
-                </div>
-              </SettingCard>
-
-              <SettingCard>
-                <SettingLabel>{t.displayMode}</SettingLabel>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => s.setTheme('dark')}
-                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.theme === 'dark')}`}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">dark_mode</span>
-                    {t.dark}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => s.setTheme('light')}
-                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.theme === 'light')}`}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">light_mode</span>
-                    {t.light}
-                  </button>
-                </div>
-              </SettingCard>
-
-              <SettingCard>
-                <SettingLabel>{t.categorySortOrder}</SettingLabel>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('created_asc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_asc')}`}
-                    >
-                      {t.categorySortCreatedAsc}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('created_desc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_desc')}`}
-                    >
-                      {t.categorySortCreatedDesc}
-                    </button>
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('name_asc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_asc')}`}
-                    >
-                      {t.categorySortNameAsc}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => s.setCategorySortOrder('name_desc')}
-                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_desc')}`}
-                    >
-                      {t.categorySortNameDesc}
-                    </button>
-                  </div>
-                </div>
-              </SettingCard>
-
-              <SettingCard>
-                <SettingLabel>{t.biometricSectionTitle}</SettingLabel>
-                <BiometricLoginCard />
-              </SettingCard>
-
-            </div>
-
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
             {/* Cột 2: Màu nền & Auto background */}
+            <SettingSection title={t.settingsSectionBackground}>
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.backgroundColor}</SettingLabel>
-                <div className="grid grid-cols-6 gap-1.5 mb-2">
+                <div className="grid grid-cols-8 sm:grid-cols-12 xl:grid-cols-16 gap-2 mb-3">
                   {BACKGROUND_COLORS.map((color) => (
                     <button
                       key={color}
                       type="button"
-                      onClick={() => s.setBackgroundColor(color)}
-                      className={`w-6 h-6 rounded-md transition ring-2 ring-offset-1 ${
+                      onClick={() => {
+                        s.setBackgroundColor(color);
+                        if (s.backgroundMode !== 'color') s.setBackgroundMode('color');
+                      }}
+                      className={`h-7 w-full rounded-md transition ring-2 ring-offset-1 ${
                         isLight ? 'ring-offset-white' : 'ring-offset-sidebar'
                       } hover:scale-105 ${
-                        s.backgroundColor === color ? 'ring-accent' : 'ring-transparent hover:ring-white/30'
+                        s.backgroundColor.toLowerCase() === color.toLowerCase()
+                          ? 'ring-accent'
+                          : 'ring-transparent hover:ring-white/30'
                       }`}
                       style={{ backgroundColor: color }}
                       aria-label={color}
+                      title={color}
                     />
                   ))}
                 </div>
-                <div className="mt-2 space-y-2">
-                  <div className="flex gap-1.5">
+                <div className="mt-1 space-y-3">
+                  <div className="flex gap-1.5 max-w-xs">
                     <button
                       type="button"
                       onClick={() => s.setBackgroundMode('color')}
@@ -527,8 +436,123 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
               </SettingCard>
 
             </div>
+            </SettingSection>
+
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {/* Cột 1: Ngôn ngữ, Trang bắt đầu & Giao diện */}
+            <SettingSection title={t.settingsSectionGeneral}>
+            <div className="space-y-3">
+              <SettingCard>
+                <SettingLabel>{t.language}</SettingLabel>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => s.setLocale('vi')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.locale === 'vi')}`}
+                  >
+                    {t.vietnamese}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => s.setLocale('en')}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.locale === 'en')}`}
+                  >
+                    {t.english}
+                  </button>
+                </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.startPage}</SettingLabel>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => s.setStartOnLanding(true)}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.startOnLanding)}`}
+                  >
+                    {t.startPageLanding}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => s.setStartOnLanding(false)}
+                    className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(!s.startOnLanding)}`}
+                  >
+                    {t.startPageBookmarks}
+                  </button>
+                </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.displayMode}</SettingLabel>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => s.setTheme('dark')}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.theme === 'dark')}`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">dark_mode</span>
+                    {t.dark}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => s.setTheme('light')}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-medium transition ${toggleBtn(s.theme === 'light')}`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">light_mode</span>
+                    {t.light}
+                  </button>
+                </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.categorySortOrder}</SettingLabel>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_asc')}`}
+                    >
+                      {t.categorySortCreatedAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('created_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'created_desc')}`}
+                    >
+                      {t.categorySortCreatedDesc}
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_asc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_asc')}`}
+                    >
+                      {t.categorySortNameAsc}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setCategorySortOrder('name_desc')}
+                      className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-medium transition ${toggleBtn(s.categorySortOrder === 'name_desc')}`}
+                    >
+                      {t.categorySortNameDesc}
+                    </button>
+                  </div>
+                </div>
+              </SettingCard>
+
+              <SettingCard>
+                <SettingLabel>{t.biometricSectionTitle}</SettingLabel>
+                <BiometricLoginCard />
+              </SettingCard>
+
+            </div>
+            </SettingSection>
 
             {/* Cột 3: Bố cục & Màu category & Mở link */}
+            <SettingSection title={t.settingsSectionLayout}>
             <div className="space-y-3">
               <SettingCard>
                 <SettingLabel>{t.categoryColumns}</SettingLabel>
@@ -614,9 +638,11 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                 <SpotlightShortcutSetting />
               </SettingCard>
             </div>
+            </SettingSection>
+            </div>
 
-            {/* Cột 4: Dữ liệu & Hành vi */}
-            <div className="space-y-3">
+            <SettingSection title={t.settingsSectionData}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <SettingCard>
                 <SettingLabel>{t.importData}</SettingLabel>
                 <p className="text-[11px] text-text-muted mb-2 leading-relaxed">{t.importDescription}</p>
@@ -676,12 +702,13 @@ export default function SettingsModal({ open, onClose, onExportHtml, onImportFil
                 </div>
               </SettingCard>
             </div>
+            </SettingSection>
           </div>
         </div>
 
         <div
-          className={`sticky bottom-0 flex justify-end px-5 py-3 border-t backdrop-blur-md ${
-            isLight ? 'border-black/10 bg-white/95' : 'border-white/10 bg-sidebar/95'
+          className={`flex shrink-0 justify-end px-6 py-3.5 border-t ${
+            isLight ? 'border-black/10 bg-white' : 'border-white/10 bg-sidebar'
           }`}
         >
           <button

@@ -78,7 +78,7 @@ export function DashboardBoardToolbar({
   return (
     <div
       className={`px-4 py-3 z-10 flex items-center justify-between flex-wrap gap-3 ${
-        isLight ? 'border-b border-black/[0.06] bg-white/30' : ''
+        isLight ? 'border-b border-black/[0.06]' : ''
       }`}
     >
       <div className="flex items-center gap-1.5">
